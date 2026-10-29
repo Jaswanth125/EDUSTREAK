@@ -1,0 +1,347 @@
+[
+  {
+    "title": "Early Bird Reader",
+    "description": "Read for at least 20 minutes before 8 AM. Start your day with knowledge!",
+    "duration": "Daily",
+    "xpReward": 50,
+    "badgeName": "Early Bird",
+    "category": "Reading"
+  },
+  {
+    "title": "Chapter Champion",
+    "description": "Complete reading one full chapter from any textbook or assigned book today.",
+    "duration": "Daily",
+    "xpReward": 75,
+    "badgeName": "Chapter Master",
+    "category": "Reading"
+  },
+  {
+    "title": "Weekend Warrior Reader",
+    "description": "Read for 1 hour total over the weekend. Break it into 2-3 sessions if needed!",
+    "duration": "Weekly",
+    "xpReward": 150,
+    "badgeName": "Weekend Scholar",
+    "category": "Reading"
+  },
+  {
+    "title": "Bookworm Monthly",
+    "description": "Read for at least 30 minutes every day this month. Build that reading habit!",
+    "duration": "Monthly",
+    "xpReward": 500,
+    "badgeName": "Bookworm",
+    "category": "Reading"
+  },
+  {
+    "title": "Speed Reader",
+    "description": "Read 50 pages in a single day. Challenge your reading speed!",
+    "duration": "Daily",
+    "xpReward": 100,
+    "badgeName": "Speed Demon",
+    "category": "Reading"
+  },
+  {
+    "title": "Quiz Master",
+    "description": "Complete 5 quizzes with at least 80% accuracy today. Show what you know!",
+    "duration": "Daily",
+    "xpReward": 100,
+    "badgeName": "Quiz Master",
+    "category": "Quizzes"
+  },
+  {
+    "title": "Perfect Score",
+    "description": "Score 100% on any quiz. Aim for perfection!",
+    "duration": "Daily",
+    "xpReward": 150,
+    "badgeName": "Perfect Score",
+    "category": "Quizzes"
+  },
+  {
+    "title": "Weekly Quiz Warrior",
+    "description": "Complete 20 quizzes this week with an average score of 75% or higher.",
+    "duration": "Weekly",
+    "xpReward": 300,
+    "badgeName": "Quiz Warrior",
+    "category": "Quizzes"
+  },
+  {
+    "title": "Rapid Fire",
+    "description": "Complete 10 quizzes in a single session without taking a break.",
+    "duration": "Daily",
+    "xpReward": 125,
+    "badgeName": "Rapid Fire",
+    "category": "Quizzes"
+  },
+  {
+    "title": "Subject Specialist",
+    "description": "Complete 5 quizzes in the same subject today and score 85%+ on all.",
+    "duration": "Daily",
+    "xpReward": 150,
+    "badgeName": "Subject Expert",
+    "category": "Quizzes"
+  },
+  {
+    "title": "AI Study Buddy",
+    "description": "Use the AI Learning Assistant to ask 5 questions and review the answers today.",
+    "duration": "Daily",
+    "xpReward": 75,
+    "badgeName": "AI Explorer",
+    "category": "AI Learning"
+  },
+  {
+    "title": "AI Deep Dive",
+    "description": "Have a 10-minute learning session with the AI assistant on any topic you're struggling with.",
+    "duration": "Daily",
+    "xpReward": 100,
+    "badgeName": "AI Scholar",
+    "category": "AI Learning"
+  },
+  {
+    "title": "Weekly AI Learner",
+    "description": "Use the AI assistant for at least 30 minutes total this week to learn new concepts.",
+    "duration": "Weekly",
+    "xpReward": 250,
+    "badgeName": "AI Enthusiast",
+    "category": "AI Learning"
+  },
+  {
+    "title": "Concept Master",
+    "description": "Use AI to explain 3 difficult concepts and create study notes for each.",
+    "duration": "Daily",
+    "xpReward": 150,
+    "badgeName": "Concept Master",
+    "category": "AI Learning"
+  },
+  {
+    "title": "Perfect Attendance Day",
+    "description": "Attend all your classes today. Be present, be engaged!",
+    "duration": "Daily",
+    "xpReward": 50,
+    "badgeName": "Present & Accounted",
+    "category": "Attendance"
+  },
+  {
+    "title": "Week Warrior",
+    "description": "Maintain 100% attendance for the entire week. No absences allowed!",
+    "duration": "Weekly",
+    "xpReward": 200,
+    "badgeName": "Week Warrior",
+    "category": "Attendance"
+  },
+  {
+    "title": "Monthly Perfect",
+    "description": "Achieve 100% attendance for the entire month. Consistency is key!",
+    "duration": "Monthly",
+    "xpReward": 750,
+    "badgeName": "Perfect Attendance",
+    "category": "Attendance"
+  },
+  {
+    "title": "On Time Hero",
+    "description": "Arrive on time (or early) to all classes today. Punctuality matters!",
+    "duration": "Daily",
+    "xpReward": 75,
+    "badgeName": "On Time Hero",
+    "category": "Attendance"
+  },
+  {
+    "title": "Never Miss",
+    "description": "Attend every single class for 2 consecutive weeks without any absences.",
+    "duration": "Weekly",
+    "xpReward": 300,
+    "badgeName": "Never Miss",
+    "category": "Attendance"
+  },
+  {
+    "title": "Study Group Starter",
+    "description": "Create or join a study group chat and have a meaningful discussion today.",
+    "duration": "Daily",
+    "xpReward": 75,
+    "badgeName": "Team Player",
+    "category": "Collaboration"
+  },
+  {
+    "title": "Helpful Classmate",
+    "description": "Help a classmate by answering their question in chat or explaining a concept.",
+    "duration": "Daily",
+    "xpReward": 100,
+    "badgeName": "Helper",
+    "category": "Collaboration"
+  },
+  {
+    "title": "Group Project Hero",
+    "description": "Participate actively in a group project discussion and contribute ideas this week.",
+    "duration": "Weekly",
+    "xpReward": 200,
+    "badgeName": "Collaborator",
+    "category": "Collaboration"
+  },
+  {
+    "title": "Peer Tutor",
+    "description": "Help 3 different classmates understand difficult concepts this week.",
+    "duration": "Weekly",
+    "xpReward": 250,
+    "badgeName": "Peer Tutor",
+    "category": "Collaboration"
+  },
+  {
+    "title": "Discussion Leader",
+    "description": "Start a meaningful educational discussion in chat and engage with 5+ responses.",
+    "duration": "Daily",
+    "xpReward": 125,
+    "badgeName": "Discussion Leader",
+    "category": "Collaboration"
+  },
+  {
+    "title": "Task Completer",
+    "description": "Complete all assigned tasks for today. Stay on top of your work!",
+    "duration": "Daily",
+    "xpReward": 100,
+    "badgeName": "Task Master",
+    "category": "Productivity"
+  },
+  {
+    "title": "Early Finisher",
+    "description": "Submit a task at least 1 day before the deadline. Get ahead!",
+    "duration": "Daily",
+    "xpReward": 125,
+    "badgeName": "Early Bird",
+    "category": "Productivity"
+  },
+  {
+    "title": "Weekly Organizer",
+    "description": "Complete all weekly tasks and assignments on time this week.",
+    "duration": "Weekly",
+    "xpReward": 300,
+    "badgeName": "Organized",
+    "category": "Productivity"
+  },
+  {
+    "title": "Focus Session",
+    "description": "Complete 3 tasks in a single focused study session without distractions.",
+    "duration": "Daily",
+    "xpReward": 150,
+    "badgeName": "Focused",
+    "category": "Productivity"
+  },
+  {
+    "title": "Productivity Streak",
+    "description": "Complete all daily tasks for 7 consecutive days. Build that momentum!",
+    "duration": "Weekly",
+    "xpReward": 400,
+    "badgeName": "Streak Master",
+    "category": "Productivity"
+  },
+  {
+    "title": "Multi-Tasker",
+    "description": "Complete tasks from 3 different subjects in a single day.",
+    "duration": "Daily",
+    "xpReward": 125,
+    "badgeName": "Multi-Tasker",
+    "category": "Productivity"
+  },
+  {
+    "title": "Night Owl Scholar",
+    "description": "Complete a study session after 8 PM. Sometimes the best learning happens at night!",
+    "duration": "Daily",
+    "xpReward": 75,
+    "badgeName": "Night Owl",
+    "category": "Productivity"
+  },
+  {
+    "title": "Weekend Productivity",
+    "description": "Complete at least 5 tasks over the weekend. Make weekends count!",
+    "duration": "Weekly",
+    "xpReward": 200,
+    "badgeName": "Weekend Warrior",
+    "category": "Productivity"
+  },
+  {
+    "title": "Rapid Learner",
+    "description": "Complete 3 quizzes, read for 30 minutes, and finish 2 tasks all in one day.",
+    "duration": "Daily",
+    "xpReward": 200,
+    "badgeName": "Rapid Learner",
+    "category": "Productivity"
+  },
+  {
+    "title": "Study Marathon",
+    "description": "Complete 10 different learning activities (quizzes, reading, tasks) in a single day.",
+    "duration": "Daily",
+    "xpReward": 250,
+    "badgeName": "Marathon Runner",
+    "category": "Productivity"
+  },
+  {
+    "title": "Monthly All-Star",
+    "description": "Complete 80% of all available challenges this month. Be an all-star learner!",
+    "duration": "Monthly",
+    "xpReward": 1000,
+    "badgeName": "All-Star",
+    "category": "Productivity"
+  },
+  {
+    "title": "Cross-Category Champion",
+    "description": "Complete at least one challenge from each category (Reading, Quizzes, AI, Attendance, Collaboration, Productivity) today.",
+    "duration": "Daily",
+    "xpReward": 300,
+    "badgeName": "Champion",
+    "category": "Productivity"
+  },
+  {
+    "title": "First Week Focus",
+    "description": "Complete all daily challenges for the first 7 days of the month.",
+    "duration": "Monthly",
+    "xpReward": 500,
+    "badgeName": "Strong Start",
+    "category": "Productivity"
+  },
+  {
+    "title": "Consistency King",
+    "description": "Complete at least one challenge every day for 14 consecutive days.",
+    "duration": "Weekly",
+    "xpReward": 500,
+    "badgeName": "Consistency King",
+    "category": "Productivity"
+  },
+  {
+    "title": "Knowledge Seeker",
+    "description": "Read for 20 minutes, complete 3 quizzes, and use AI assistant for 10 minutes - all in one day.",
+    "duration": "Daily",
+    "xpReward": 175,
+    "badgeName": "Knowledge Seeker",
+    "category": "Productivity"
+  },
+  {
+    "title": "Weekend Scholar",
+    "description": "Complete 3 reading sessions, 5 quizzes, and help 2 classmates over the weekend.",
+    "duration": "Weekly",
+    "xpReward": 350,
+    "badgeName": "Weekend Scholar",
+    "category": "Productivity"
+  },
+  {
+    "title": "Balanced Learner",
+    "description": "This week: maintain perfect attendance, read daily, complete 10 quizzes, and collaborate with classmates.",
+    "duration": "Weekly",
+    "xpReward": 500,
+    "badgeName": "Balanced",
+    "category": "Productivity"
+  },
+  {
+    "title": "Rising Star",
+    "description": "Complete 25 challenges this month across all categories. Show your dedication!",
+    "duration": "Monthly",
+    "xpReward": 750,
+    "badgeName": "Rising Star",
+    "category": "Productivity"
+  },
+  {
+    "title": "Learning Legend",
+    "description": "Complete 50+ challenges this month. You're becoming a learning legend!",
+    "duration": "Monthly",
+    "xpReward": 1500,
+    "badgeName": "Legend",
+    "category": "Productivity"
+  }
+]
+

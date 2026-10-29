@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "982536644479",
+    "project_id": "edustreak-21475",
+    "storage_bucket": "edustreak-21475.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:982536644479:android:10265c50266ea19a7b1c4a",
+        "android_client_info": {
+          "package_name": "com.example.edustreak"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8EC_rcNlYy9sk3XsM7gyB9rJUevn8OF4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

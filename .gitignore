@@ -1,0 +1,71 @@
+# Environment variables & secrets
+.env
+*.env
+*.env.local
+*.env.*.local
+!*.env.example
+
+# Python & Virtual Environments
+venv/
+**/venv/
+env/
+**/env/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+**/vectorstore/
+*.log
+backend_log.txt
+
+# Flutter / Dart
+.dart_tool/
+**/.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+**/build/
+**/doc/api/
+.packages
+
+# Android
+**/.gradle/
+**/local.properties
+**/captures/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+*.keystore
+*.jks
+
+# Windows build artifacts
+**/windows/flutter/ephemeral/
+**/windows/build/
+
+# iOS / macOS
+**/ios/Flutter/.last_build_id
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+.DS_Store
+
+# IDE and Editor files
+.idea/
+**/.idea/
+*.iml
+**/*.iml
+*.ipr
+*.iws
+.vscode/
+**/.vscode/
+.vs/
+**/.vs/
+
+# Miscellaneous
+Thumbs.db
+Desktop.ini
+migrate_working_dir/

@@ -1,0 +1,26 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Profile images
+    match /users/{userId}/profile.jpg {
+      allow read: if true; // Anyone can read profile images
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Chat attachments (if needed in future)
+    match /chats/{chatId}/messages/{messageId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+                     request.auth.uid in resource.metadata.participants;
+    }
+    
+    // Task attachments (if needed in future)
+    match /tasks/{taskId}/attachments/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+                     (get(/databases/$(database)/documents/tasks/$(taskId)).data.assignedBy == request.auth.uid ||
+                      request.auth.uid in get(/databases/$(database)/documents/tasks/$(taskId)).data.assignedTo);
+    }
+  }
+}
+

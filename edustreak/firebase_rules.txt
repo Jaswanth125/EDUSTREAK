@@ -1,0 +1,403 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserRole() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) ?
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isStudent() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+    
+    function isTeacher() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+    
+    function getCurrentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Helper function to check if current user is a teacher
+      function isCurrentUserTeacher() {
+        return isAuthenticated() && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+      }
+      
+      // Users can read their own data
+      // Admins can read all users
+      // Students can read other students in their class (for leaderboard)
+      // Teachers can read students in their classes
+      // Parents can read their child and other students in child's class
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        (isStudent() && 
+         resource.data.role == 'student' && 
+         getCurrentUser().classId != null && 
+         resource.data.classId == getCurrentUser().classId) ||
+        (isTeacher() && 
+         resource.data.role == 'student' && 
+         resource.data.classId != null &&
+         getCurrentUser().classIds != null && 
+         resource.data.classId in getCurrentUser().classIds) ||
+        (getCurrentUser().role == 'parent' && 
+         getCurrentUser().childId != null && 
+         (userId == getCurrentUser().childId ||
+          (resource.data.role == 'student' && 
+           get(/databases/$(database)/documents/users/$(getCurrentUser().childId)).data.classId != null && 
+           resource.data.classId == get(/databases/$(database)/documents/users/$(getCurrentUser().childId)).data.classId)))
+      );
+      
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Users can update their own data
+      // Admins can update any user
+      // Teachers can update student XP and level (for grading tasks)
+      allow update: if isAuthenticated() && (
+        isOwner(userId) || 
+        isAdmin() ||
+        (isCurrentUserTeacher() && 
+         exists(/databases/$(database)/documents/users/$(userId)) &&
+         get(/databases/$(database)/documents/users/$(userId)).data.role == 'student' &&
+         // Only allow updating XP and level fields when grading
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp', 'level']))
+      );
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Attendance Records - stored in users/{studentId}/attendanceRecords/{date}
+    match /users/{userId}/attendanceRecords/{dateKey} {
+      // Helper function to check if user is a teacher
+      function isTeacherUser() {
+        return isAuthenticated() && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+      }
+      
+      // Helper function to check if teacher can mark attendance for this student
+      function canTeacherMarkAttendance() {
+        return isTeacherUser() &&
+               exists(/databases/$(database)/documents/users/$(userId)) &&
+               get(/databases/$(database)/documents/users/$(userId)).data.role == 'student' &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.classIds != null &&
+               get(/databases/$(database)/documents/users/$(userId)).data.classId != null &&
+               get(/databases/$(database)/documents/users/$(userId)).data.classId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.classIds;
+      }
+      
+      // Students can read their own attendance records
+      // Teachers can read attendance of students in their classes (or any if class check fails)
+      // Parents can read their child's attendance
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isTeacherUser() ||  // Allow all teachers to read (for now, can be restricted later)
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'parent' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.childId != null &&
+         userId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.childId) ||
+        isAdmin()
+      );
+      
+      // Only teachers and admins can create attendance records
+      // For now, allow any teacher to create (can be restricted to their classes later)
+      allow create: if isAuthenticated() && (
+        isTeacherUser() ||
+        isAdmin()
+      );
+      
+      // Prevent updates to maintain data integrity (attendance once marked cannot be changed)
+      allow update: if false;
+      
+      // Only admins can delete (for data correction)
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Attendance Summary - monthly summaries per class
+    match /attendanceSummary/{summaryId} {
+      // Helper function to check if user is teacher or admin
+      function isTeacherOrAdmin() {
+        return isAuthenticated() && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher' ||
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      }
+      
+      // Anyone authenticated can read attendance summaries
+      allow read: if isAuthenticated();
+      
+      // Only teachers and admins can create/update summaries
+      // Summaries are automatically updated when attendance is marked
+      allow create: if isTeacherOrAdmin();
+      
+      allow update: if isTeacherOrAdmin();
+      
+      // Only admins can delete summaries
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Tasks collection
+    match /tasks/{taskId} {
+      // Helper function to check if user is teacher
+      function isTeacherUser() {
+        return isAuthenticated() && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+      }
+      
+      // Helper function to check if user is student
+      function isStudentUser() {
+        return isAuthenticated() && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+      }
+      
+      // Anyone authenticated can read tasks
+      allow read: if isAuthenticated();
+      
+      // Only teachers and admins can create tasks
+      allow create: if isAuthenticated() && (isTeacherUser() || isAdmin());
+      
+      // Teachers and admins can update any field (for grading)
+      // Students can only update their own submissions
+      allow update: if isAuthenticated() && (
+        isTeacherUser() || 
+        isAdmin() ||
+        (isStudentUser() && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['submissions', 'proofUrls', 'submissionTexts']))
+      );
+      
+      // Only teachers and admins can delete tasks
+      allow delete: if isAuthenticated() && (isTeacherUser() || isAdmin());
+    }
+    
+    // Store collection - Store items (avatars, etc.)
+    match /store/{itemId} {
+      // Anyone authenticated can read store items
+      allow read: if isAuthenticated();
+      // Only admins can write store items (except for avatars initialization)
+      allow write: if isAuthenticated() && isAdmin();
+    }
+    
+    // Store collection - Avatars (special case for initialization)
+    match /store/avatars {
+      // Anyone authenticated can read avatars
+      allow read: if isAuthenticated();
+      // Allow creation for first-time initialization (any authenticated user can initialize once)
+      // This allows students to initialize avatars without admin access
+      allow create: if isAuthenticated();
+      // Only admins can update or delete after creation
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+      
+      // Avatar items subcollection
+      match /items/{avatarId} {
+        // Anyone authenticated can read avatar items
+        allow read: if isAuthenticated();
+        // Allow creation during initialization (when parent document is being created)
+        // This allows the batch write to succeed during initialization
+        allow create: if isAuthenticated();
+        // Only admins can update or delete after initialization
+        allow update: if isAuthenticated() && isAdmin();
+        allow delete: if isAuthenticated() && isAdmin();
+      }
+    }
+    
+    // Store badges collection - specific rules for badge upload
+    match /store/badges {
+      // Anyone authenticated can read badges
+      allow read: if isAuthenticated();
+      // Only admins can write/update badges
+      allow write: if isAuthenticated() && isAdmin();
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+      
+      // Badge items subcollection
+      match /items/{badgeId} {
+        // Anyone authenticated can read badge items
+        allow read: if isAuthenticated();
+        // Only admins can write badge items
+        allow write: if isAuthenticated() && isAdmin();
+        allow create: if isAuthenticated() && isAdmin();
+        allow update: if isAuthenticated() && isAdmin();
+        allow delete: if isAuthenticated() && isAdmin();
+      }
+    }
+    
+    // Chats collection - Real-time messaging system
+    match /chats/{chatId} {
+      // Helper function to check if user is a participant
+      function isParticipant() {
+        return isAuthenticated() && 
+               request.auth.uid in resource.data.participants;
+      }
+      
+      function canCreateChat() {
+        // Only allow creating chats with valid participants (2 users)
+        return isAuthenticated() && 
+               request.resource.data.participants.size() == 2 &&
+               request.auth.uid in request.resource.data.participants &&
+               request.resource.data.keys().hasAll(['participants', 'chatType', 'createdAt']);
+      }
+      
+      // Read: Only participants can read chat metadata
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+      
+      // Create: Authenticated users can create chats (with validation)
+      allow create: if canCreateChat();
+      
+      // Update: Only participants can update (for lastMessage, typing, unreadCount, etc.)
+      allow update: if isParticipant() && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                      'lastMessage', 'lastTimestamp', 'typing', 
+                      'lastSeen', 'unreadCount'
+                    ]);
+      
+      // Delete: Only participants can delete (or admin)
+      allow delete: if isParticipant() || isAdmin();
+      
+      // Messages subcollection - Real-time message streaming
+      match /messages/{messageId} {
+        // Helper to get chat participants
+        function getChatParticipants() {
+          return get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        }
+        
+        // Read: Only chat participants can read messages
+        allow read: if isAuthenticated() && 
+                    request.auth.uid in getChatParticipants();
+        
+        // Create: Only participants can send messages, and senderId must match auth.uid
+        allow create: if isAuthenticated() && 
+                      request.auth.uid in getChatParticipants() &&
+                      request.auth.uid == request.resource.data.senderId &&
+                      request.resource.data.keys().hasAll([
+                        'chatId', 'senderId', 'senderName', 'text', 'timestamp'
+                      ]);
+        
+        // Update: Only sender can update their own messages (for status, readBy)
+        allow update: if isAuthenticated() && 
+                      request.auth.uid == resource.data.senderId &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                        'status', 'readBy'
+                      ]);
+        
+        // Also allow participants to update readBy (mark as read)
+        allow update: if isAuthenticated() && 
+                      request.auth.uid in getChatParticipants() &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
+        
+        // Delete: Only sender can delete their own messages
+        allow delete: if isAuthenticated() && 
+                      request.auth.uid == resource.data.senderId;
+      }
+    }
+    
+    // Classes collection
+    match /classes/{classId} {
+      // Helper function to check if user is teacher
+      function isTeacherUser() {
+        return isAuthenticated() && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+      }
+      
+      // Admins and teachers can read all classes
+      // Students can read their own class
+      // Parents can read their child's class
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        isTeacherUser() ||
+        (isStudent() && getCurrentUser().classId == classId) ||
+        (getCurrentUser().role == 'parent' && 
+         getCurrentUser().childId != null && 
+         get(/databases/$(database)/documents/users/$(getCurrentUser().childId)).data.classId == classId)
+      );
+      
+      // Allow any authenticated user to create classes (for seed data initialization)
+      // Admin can update/delete
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Challenges collection
+    match /challenges/{challengeId} {
+      // Helper function to check if user is teacher
+      function isTeacherUser() {
+        return isAuthenticated() && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+      }
+      
+      // Helper function to check if user is student
+      function isStudentUser() {
+        return isAuthenticated() && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+      }
+      
+      // Anyone authenticated can read challenges
+      allow read: if isAuthenticated();
+      
+      // Only teachers and admins can create challenges
+      allow create: if isAuthenticated() && (isTeacherUser() || isAdmin());
+      
+      // Teachers and admins can update any field
+      // Students can only update completions
+      allow update: if isAuthenticated() && (
+        isTeacherUser() || 
+        isAdmin() ||
+        (isStudentUser() && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completions']))
+      );
+      
+      // Only teachers and admins can delete challenges
+      allow delete: if isAuthenticated() && (isTeacherUser() || isAdmin());
+    }
+    
+    // Support Info collection (Help & Support data)
+    match /support_info/{docId} {
+      // Anyone authenticated can read support info
+      allow read: if isAuthenticated();
+      // Only admins can create/update/delete support info
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Messages collection (legacy - for backward compatibility)
+    match /messages/{messageId} {
+      // Users can read messages they sent or received
+      allow read: if isAuthenticated();
+      // Users can create messages
+      allow create: if isAuthenticated();
+      // Users can update their own messages
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.senderId;
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "edustreak-21475",
+          "appId": "1:982536644479:android:10265c50266ea19a7b1c4a",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "edustreak-21475",
+          "configurations": {
+            "android": "1:982536644479:android:10265c50266ea19a7b1c4a",
+            "web": "1:982536644479:web:6f5ac6f91eb6a2d47b1c4a"
+          }
+        }
+      }
+    }
+  }
+}

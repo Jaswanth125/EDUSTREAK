@@ -1,0 +1,291 @@
+[
+  {
+    "avatarId": "motivated_student",
+    "name": "Motivated Student",
+    "description": "A determined student ready to conquer any challenge. Shows your dedication to learning!",
+    "category": "Motivation",
+    "price": 200,
+    "icon": "🎓",
+    "iconUrl": "https://example.com/icons/motivated_student.png"
+  },
+  {
+    "avatarId": "rising_champion",
+    "name": "Rising Champion",
+    "description": "A champion in the making. Every day you learn, you rise higher!",
+    "category": "Motivation",
+    "price": 300,
+    "icon": "🏆",
+    "iconUrl": "https://example.com/icons/rising_champion.png"
+  },
+  {
+    "avatarId": "knowledge_seeker",
+    "name": "Knowledge Seeker",
+    "description": "Curious and eager to learn. Your quest for knowledge never ends!",
+    "category": "Motivation",
+    "price": 250,
+    "icon": "🔍",
+    "iconUrl": "https://example.com/icons/knowledge_seeker.png"
+  },
+  {
+    "avatarId": "goal_achiever",
+    "name": "Goal Achiever",
+    "description": "You set goals and achieve them. Nothing can stop you!",
+    "category": "Motivation",
+    "price": 400,
+    "icon": "🎯",
+    "iconUrl": "https://example.com/icons/goal_achiever.png"
+  },
+  {
+    "avatarId": "bright_mind",
+    "name": "Bright Mind",
+    "description": "Your mind shines bright with knowledge and wisdom!",
+    "category": "Motivation",
+    "price": 350,
+    "icon": "💡",
+    "iconUrl": "https://example.com/icons/bright_mind.png"
+  },
+  {
+    "avatarId": "study_warrior",
+    "name": "Study Warrior",
+    "description": "A warrior in the battle of learning. You never give up!",
+    "category": "Motivation",
+    "price": 450,
+    "icon": "⚔️",
+    "iconUrl": "https://example.com/icons/study_warrior.png"
+  },
+  {
+    "avatarId": "star_performer",
+    "name": "Star Performer",
+    "description": "You shine like a star with your excellent performance!",
+    "category": "Achievement",
+    "price": 500,
+    "icon": "⭐",
+    "iconUrl": "https://example.com/icons/star_performer.png"
+  },
+  {
+    "avatarId": "success_master",
+    "name": "Success Master",
+    "description": "Master of your own success. You make it happen!",
+    "category": "Achievement",
+    "price": 600,
+    "icon": "👑",
+    "iconUrl": "https://example.com/icons/success_master.png"
+  },
+  {
+    "avatarId": "excellence_icon",
+    "name": "Excellence Icon",
+    "description": "An icon of excellence. You strive for perfection in everything!",
+    "category": "Achievement",
+    "price": 700,
+    "icon": "✨",
+    "iconUrl": "https://example.com/icons/excellence_icon.png"
+  },
+  {
+    "avatarId": "top_achiever",
+    "name": "Top Achiever",
+    "description": "You're at the top of your game. Keep achieving greatness!",
+    "category": "Achievement",
+    "price": 800,
+    "icon": "🏅",
+    "iconUrl": "https://example.com/icons/top_achiever.png"
+  },
+  {
+    "avatarId": "genius_learner",
+    "name": "Genius Learner",
+    "description": "A genius in learning. Your intelligence knows no bounds!",
+    "category": "Achievement",
+    "price": 900,
+    "icon": "🧠",
+    "iconUrl": "https://example.com/icons/genius_learner.png"
+  },
+  {
+    "avatarId": "champion_learner",
+    "name": "Champion Learner",
+    "description": "The ultimate champion of learning. You are unstoppable!",
+    "category": "Achievement",
+    "price": 1000,
+    "icon": "🥇",
+    "iconUrl": "https://example.com/icons/champion_learner.png"
+  },
+  {
+    "avatarId": "fire_streak",
+    "name": "Fire Streak",
+    "description": "On fire with your learning streak! Keep the momentum going!",
+    "category": "Streaks",
+    "price": 300,
+    "icon": "🔥",
+    "iconUrl": "https://example.com/icons/fire_streak.png"
+  },
+  {
+    "avatarId": "rocket_learner",
+    "name": "Rocket Learner",
+    "description": "Rocketing to success! Your learning journey knows no limits!",
+    "category": "Streaks",
+    "price": 400,
+    "icon": "🚀",
+    "iconUrl": "https://example.com/icons/rocket_learner.png"
+  },
+  {
+    "avatarId": "consistent_hero",
+    "name": "Consistent Hero",
+    "description": "A hero of consistency. You show up every day and give your best!",
+    "category": "Streaks",
+    "price": 500,
+    "icon": "💪",
+    "iconUrl": "https://example.com/icons/consistent_hero.png"
+  },
+  {
+    "avatarId": "dedicated_scholar",
+    "name": "Dedicated Scholar",
+    "description": "Dedicated to your studies. Your commitment inspires others!",
+    "category": "Streaks",
+    "price": 600,
+    "icon": "📚",
+    "iconUrl": "https://example.com/icons/dedicated_scholar.png"
+  },
+  {
+    "avatarId": "persistent_winner",
+    "name": "Persistent Winner",
+    "description": "You persist and you win! Your determination is admirable!",
+    "category": "Streaks",
+    "price": 700,
+    "icon": "🎖️",
+    "iconUrl": "https://example.com/icons/persistent_winner.png"
+  },
+  {
+    "avatarId": "growth_mindset_avatar",
+    "name": "Growth Mindset",
+    "description": "Embrace challenges and grow! Your mindset sets you apart!",
+    "category": "Personal Growth",
+    "price": 350,
+    "icon": "🌱",
+    "iconUrl": "https://example.com/icons/growth_mindset_avatar.png"
+  },
+  {
+    "avatarId": "resilient_learner",
+    "name": "Resilient Learner",
+    "description": "Bounce back stronger! Your resilience is your superpower!",
+    "category": "Personal Growth",
+    "price": 400,
+    "icon": "🌳",
+    "iconUrl": "https://example.com/icons/resilient_learner.png"
+  },
+  {
+    "avatarId": "confident_achiever",
+    "name": "Confident Achiever",
+    "description": "Confidence in yourself and your abilities. You've got this!",
+    "category": "Personal Growth",
+    "price": 450,
+    "icon": "💎",
+    "iconUrl": "https://example.com/icons/confident_achiever.png"
+  },
+  {
+    "avatarId": "focused_master",
+    "name": "Focused Master",
+    "description": "Master of focus and concentration. You stay on track!",
+    "category": "Personal Growth",
+    "price": 500,
+    "icon": "🎯",
+    "iconUrl": "https://example.com/icons/focused_master.png"
+  },
+  {
+    "avatarId": "creative_thinker",
+    "name": "Creative Thinker",
+    "description": "Think outside the box! Your creativity knows no bounds!",
+    "category": "Skills",
+    "price": 400,
+    "icon": "🎨",
+    "iconUrl": "https://example.com/icons/creative_thinker.png"
+  },
+  {
+    "avatarId": "problem_solver",
+    "name": "Problem Solver",
+    "description": "Solve problems like a pro! Your analytical skills are impressive!",
+    "category": "Skills",
+    "price": 450,
+    "icon": "🧩",
+    "iconUrl": "https://example.com/icons/problem_solver.png"
+  },
+  {
+    "avatarId": "critical_thinker",
+    "name": "Critical Thinker",
+    "description": "Think critically and make smart decisions!",
+    "category": "Skills",
+    "price": 500,
+    "icon": "🔬",
+    "iconUrl": "https://example.com/icons/critical_thinker.png"
+  },
+  {
+    "avatarId": "team_player",
+    "name": "Team Player",
+    "description": "Work together, achieve more! Your collaboration skills shine!",
+    "category": "Skills",
+    "price": 350,
+    "icon": "🤝",
+    "iconUrl": "https://example.com/icons/team_player.png"
+  },
+  {
+    "avatarId": "leader_avatar",
+    "name": "Leader",
+    "description": "Lead by example! Your leadership inspires others!",
+    "category": "Skills",
+    "price": 600,
+    "icon": "👔",
+    "iconUrl": "https://example.com/icons/leader_avatar.png"
+  },
+  {
+    "avatarId": "explorer_avatar",
+    "name": "Explorer",
+    "description": "Explore new knowledge and discover new horizons!",
+    "category": "Adventure",
+    "price": 300,
+    "icon": "🗺️",
+    "iconUrl": "https://example.com/icons/explorer_avatar.png"
+  },
+  {
+    "avatarId": "adventurer_learner",
+    "name": "Adventurer",
+    "description": "An adventure in learning awaits! Explore fearlessly!",
+    "category": "Adventure",
+    "price": 400,
+    "icon": "🏔️",
+    "iconUrl": "https://example.com/icons/adventurer_learner.png"
+  },
+  {
+    "avatarId": "pioneer_avatar",
+    "name": "Pioneer",
+    "description": "Pioneer new paths in learning! Be a trailblazer!",
+    "category": "Adventure",
+    "price": 500,
+    "icon": "🌟",
+    "iconUrl": "https://example.com/icons/pioneer_avatar.png"
+  },
+  {
+    "avatarId": "dream_achiever",
+    "name": "Dream Achiever",
+    "description": "Turn your dreams into reality! You're making it happen!",
+    "category": "Inspiration",
+    "price": 550,
+    "icon": "🌙",
+    "iconUrl": "https://example.com/icons/dream_achiever.png"
+  },
+  {
+    "avatarId": "inspiration_icon",
+    "name": "Inspiration",
+    "description": "An inspiration to others! Your journey motivates everyone!",
+    "category": "Inspiration",
+    "price": 600,
+    "icon": "💫",
+    "iconUrl": "https://example.com/icons/inspiration_icon.png"
+  },
+  {
+    "avatarId": "legend_learner",
+    "name": "Legend",
+    "description": "A legend in the making! Your story inspires generations!",
+    "category": "Inspiration",
+    "price": 1200,
+    "icon": "👑",
+    "iconUrl": "https://example.com/icons/legend_learner.png"
+  }
+]
+

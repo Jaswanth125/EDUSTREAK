@@ -1,0 +1,563 @@
+[
+  {
+    "badgeId": "attendance_hero",
+    "name": "Attendance Hero",
+    "description": "Awarded for perfect attendance for 5 consecutive days.",
+    "category": "Attendance",
+    "price": 300,
+    "iconUrl": "https://example.com/icons/attendance_hero.png"
+  },
+  {
+    "badgeId": "punctual_pioneer",
+    "name": "Punctual Pioneer",
+    "description": "Never miss a class for 10 days straight.",
+    "category": "Attendance",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/punctual_pioneer.png"
+  },
+  {
+    "badgeId": "perfect_attendance_month",
+    "name": "Perfect Attendance Month",
+    "description": "Complete a full month without missing a single class.",
+    "category": "Attendance",
+    "price": 800,
+    "iconUrl": "https://example.com/icons/perfect_attendance_month.png"
+  },
+  {
+    "badgeId": "early_bird",
+    "name": "Early Bird",
+    "description": "Be the first to mark attendance 10 times.",
+    "category": "Attendance",
+    "price": 400,
+    "iconUrl": "https://example.com/icons/early_bird.png"
+  },
+  {
+    "badgeId": "attendance_champion",
+    "name": "Attendance Champion",
+    "description": "Maintain 100% attendance for 2 months.",
+    "category": "Attendance",
+    "price": 1200,
+    "iconUrl": "https://example.com/icons/attendance_champion.png"
+  },
+  {
+    "badgeId": "streak_starter",
+    "name": "Streak Starter",
+    "description": "Start your first 3-day learning streak.",
+    "category": "Learning Streaks",
+    "price": 150,
+    "iconUrl": "https://example.com/icons/streak_starter.png"
+  },
+  {
+    "badgeId": "week_warrior",
+    "name": "Week Warrior",
+    "description": "Maintain a 7-day learning streak.",
+    "category": "Learning Streaks",
+    "price": 300,
+    "iconUrl": "https://example.com/icons/week_warrior.png"
+  },
+  {
+    "badgeId": "fortnight_fire",
+    "name": "Fortnight Fire",
+    "description": "Keep the learning flame burning for 14 days.",
+    "category": "Learning Streaks",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/fortnight_fire.png"
+  },
+  {
+    "badgeId": "monthly_marathon",
+    "name": "Monthly Marathon",
+    "description": "Complete a 30-day learning streak.",
+    "category": "Learning Streaks",
+    "price": 800,
+    "iconUrl": "https://example.com/icons/monthly_marathon.png"
+  },
+  {
+    "badgeId": "streak_legend",
+    "name": "Streak Legend",
+    "description": "Achieve an incredible 60-day learning streak.",
+    "category": "Learning Streaks",
+    "price": 1500,
+    "iconUrl": "https://example.com/icons/streak_legend.png"
+  },
+  {
+    "badgeId": "century_streak",
+    "name": "Century Streak",
+    "description": "Reach the ultimate 100-day learning streak.",
+    "category": "Learning Streaks",
+    "price": 2000,
+    "iconUrl": "https://example.com/icons/century_streak.png"
+  },
+  {
+    "badgeId": "assignment_ace",
+    "name": "Assignment Ace",
+    "description": "Submit 5 assignments on time.",
+    "category": "Assignments",
+    "price": 250,
+    "iconUrl": "https://example.com/icons/assignment_ace.png"
+  },
+  {
+    "badgeId": "homework_hero",
+    "name": "Homework Hero",
+    "description": "Complete 10 assignments with full marks.",
+    "category": "Assignments",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/homework_hero.png"
+  },
+  {
+    "badgeId": "early_submitter",
+    "name": "Early Submitter",
+    "description": "Submit 3 assignments before the deadline.",
+    "category": "Assignments",
+    "price": 300,
+    "iconUrl": "https://example.com/icons/early_submitter.png"
+  },
+  {
+    "badgeId": "perfect_paper",
+    "name": "Perfect Paper",
+    "description": "Score 100% on 3 consecutive assignments.",
+    "category": "Assignments",
+    "price": 600,
+    "iconUrl": "https://example.com/icons/perfect_paper.png"
+  },
+  {
+    "badgeId": "assignment_master",
+    "name": "Assignment Master",
+    "description": "Complete 20 assignments with 90%+ scores.",
+    "category": "Assignments",
+    "price": 1000,
+    "iconUrl": "https://example.com/icons/assignment_master.png"
+  },
+  {
+    "badgeId": "quiz_novice",
+    "name": "Quiz Novice",
+    "description": "Complete your first quiz successfully.",
+    "category": "Quiz",
+    "price": 100,
+    "iconUrl": "https://example.com/icons/quiz_novice.png"
+  },
+  {
+    "badgeId": "quiz_master",
+    "name": "Quiz Master",
+    "description": "Achieve 90% or higher in 5 quizzes.",
+    "category": "Quiz",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/quiz_master.png"
+  },
+  {
+    "badgeId": "perfect_score",
+    "name": "Perfect Score",
+    "description": "Get 100% on 3 quizzes.",
+    "category": "Quiz",
+    "price": 600,
+    "iconUrl": "https://example.com/icons/perfect_score.png"
+  },
+  {
+    "badgeId": "speed_demon",
+    "name": "Speed Demon",
+    "description": "Complete 5 quizzes in record time.",
+    "category": "Quiz",
+    "price": 400,
+    "iconUrl": "https://example.com/icons/speed_demon.png"
+  },
+  {
+    "badgeId": "quiz_champion",
+    "name": "Quiz Champion",
+    "description": "Win 10 quizzes with 85%+ scores.",
+    "category": "Quiz",
+    "price": 800,
+    "iconUrl": "https://example.com/icons/quiz_champion.png"
+  },
+  {
+    "badgeId": "trivia_titan",
+    "name": "Trivia Titan",
+    "description": "Answer 50 quiz questions correctly in a row.",
+    "category": "Quiz",
+    "price": 1200,
+    "iconUrl": "https://example.com/icons/trivia_titan.png"
+  },
+  {
+    "badgeId": "first_steps",
+    "name": "First Steps",
+    "description": "Complete your first learning activity.",
+    "category": "Motivation",
+    "price": 100,
+    "iconUrl": "https://example.com/icons/first_steps.png"
+  },
+  {
+    "badgeId": "rising_star",
+    "name": "Rising Star",
+    "description": "Show consistent improvement over a week.",
+    "category": "Motivation",
+    "price": 300,
+    "iconUrl": "https://example.com/icons/rising_star.png"
+  },
+  {
+    "badgeId": "determined_learner",
+    "name": "Determined Learner",
+    "description": "Never give up - complete 20 challenging tasks.",
+    "category": "Motivation",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/determined_learner.png"
+  },
+  {
+    "badgeId": "growth_mindset",
+    "name": "Growth Mindset",
+    "description": "Embrace challenges and learn from mistakes.",
+    "category": "Motivation",
+    "price": 400,
+    "iconUrl": "https://example.com/icons/growth_mindset.png"
+  },
+  {
+    "badgeId": "perseverance_pro",
+    "name": "Perseverance Pro",
+    "description": "Keep going even when things get tough.",
+    "category": "Motivation",
+    "price": 600,
+    "iconUrl": "https://example.com/icons/perseverance_pro.png"
+  },
+  {
+    "badgeId": "goal_crusher",
+    "name": "Goal Crusher",
+    "description": "Achieve 5 personal learning goals.",
+    "category": "Motivation",
+    "price": 700,
+    "iconUrl": "https://example.com/icons/goal_crusher.png"
+  },
+  {
+    "badgeId": "ai_explorer",
+    "name": "AI Explorer",
+    "description": "Use the AI Study Assistant for the first time.",
+    "category": "AI Learning",
+    "price": 200,
+    "iconUrl": "https://example.com/icons/ai_explorer.png"
+  },
+  {
+    "badgeId": "flashcard_fanatic",
+    "name": "Flashcard Fanatic",
+    "description": "Study 50 flashcards using AI assistance.",
+    "category": "AI Learning",
+    "price": 400,
+    "iconUrl": "https://example.com/icons/flashcard_fanatic.png"
+  },
+  {
+    "badgeId": "mnemonic_master",
+    "name": "Mnemonic Master",
+    "description": "Learn 20 mnemonics from the AI Study Assistant.",
+    "category": "AI Learning",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/mnemonic_master.png"
+  },
+  {
+    "badgeId": "ai_chat_champion",
+    "name": "AI Chat Champion",
+    "description": "Have 30 meaningful conversations with AI tutor.",
+    "category": "AI Learning",
+    "price": 600,
+    "iconUrl": "https://example.com/icons/ai_chat_champion.png"
+  },
+  {
+    "badgeId": "study_assistant_pro",
+    "name": "Study Assistant Pro",
+    "description": "Master all AI learning features and tools.",
+    "category": "AI Learning",
+    "price": 1000,
+    "iconUrl": "https://example.com/icons/study_assistant_pro.png"
+  },
+  {
+    "badgeId": "ai_learning_legend",
+    "name": "AI Learning Legend",
+    "description": "Complete 100 AI-assisted study sessions.",
+    "category": "AI Learning",
+    "price": 1500,
+    "iconUrl": "https://example.com/icons/ai_learning_legend.png"
+  },
+  {
+    "badgeId": "helpful_hand",
+    "name": "Helpful Hand",
+    "description": "Help a classmate with their studies.",
+    "category": "Community",
+    "price": 300,
+    "iconUrl": "https://example.com/icons/helpful_hand.png"
+  },
+  {
+    "badgeId": "team_player",
+    "name": "Team Player",
+    "description": "Collaborate successfully in 5 group activities.",
+    "category": "Community",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/team_player.png"
+  },
+  {
+    "badgeId": "mentor_mindset",
+    "name": "Mentor Mindset",
+    "description": "Guide and support 3 fellow students.",
+    "category": "Community",
+    "price": 600,
+    "iconUrl": "https://example.com/icons/mentor_mindset.png"
+  },
+  {
+    "badgeId": "community_champion",
+    "name": "Community Champion",
+    "description": "Participate actively in 20 community discussions.",
+    "category": "Community",
+    "price": 700,
+    "iconUrl": "https://example.com/icons/community_champion.png"
+  },
+  {
+    "badgeId": "social_butterfly",
+    "name": "Social Butterfly",
+    "description": "Engage with 50 classmates in learning activities.",
+    "category": "Community",
+    "price": 800,
+    "iconUrl": "https://example.com/icons/social_butterfly.png"
+  },
+  {
+    "badgeId": "leader_of_learners",
+    "name": "Leader of Learners",
+    "description": "Lead a study group or learning session.",
+    "category": "Community",
+    "price": 1000,
+    "iconUrl": "https://example.com/icons/leader_of_learners.png"
+  },
+  {
+    "badgeId": "first_blood",
+    "name": "First Blood",
+    "description": "Earn your very first achievement badge.",
+    "category": "Special Achievements",
+    "price": 200,
+    "iconUrl": "https://example.com/icons/first_blood.png"
+  },
+  {
+    "badgeId": "point_collector",
+    "name": "Point Collector",
+    "description": "Accumulate 1000 points total.",
+    "category": "Special Achievements",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/point_collector.png"
+  },
+  {
+    "badgeId": "milestone_maker",
+    "name": "Milestone Maker",
+    "description": "Reach 5000 total points.",
+    "category": "Special Achievements",
+    "price": 1000,
+    "iconUrl": "https://example.com/icons/milestone_maker.png"
+  },
+  {
+    "badgeId": "badge_collector",
+    "name": "Badge Collector",
+    "description": "Collect 10 different badges.",
+    "category": "Special Achievements",
+    "price": 800,
+    "iconUrl": "https://example.com/icons/badge_collector.png"
+  },
+  {
+    "badgeId": "badge_master",
+    "name": "Badge Master",
+    "description": "Own 25 unique badges.",
+    "category": "Special Achievements",
+    "price": 1500,
+    "iconUrl": "https://example.com/icons/badge_master.png"
+  },
+  {
+    "badgeId": "badge_legend",
+    "name": "Badge Legend",
+    "description": "Collect all 50 available badges.",
+    "category": "Special Achievements",
+    "price": 2000,
+    "iconUrl": "https://example.com/icons/badge_legend.png"
+  },
+  {
+    "badgeId": "night_owl",
+    "name": "Night Owl",
+    "description": "Complete 10 study sessions after 9 PM.",
+    "category": "Special Achievements",
+    "price": 400,
+    "iconUrl": "https://example.com/icons/night_owl.png"
+  },
+  {
+    "badgeId": "early_riser",
+    "name": "Early Riser",
+    "description": "Start learning before 7 AM for 5 days.",
+    "category": "Special Achievements",
+    "price": 400,
+    "iconUrl": "https://example.com/icons/early_riser.png"
+  },
+  {
+    "badgeId": "weekend_warrior",
+    "name": "Weekend Warrior",
+    "description": "Complete 10 study sessions on weekends.",
+    "category": "Special Achievements",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/weekend_warrior.png"
+  },
+  {
+    "badgeId": "multi_tasker",
+    "name": "Multi-Tasker",
+    "description": "Complete 3 different activities in one day.",
+    "category": "Special Achievements",
+    "price": 300,
+    "iconUrl": "https://example.com/icons/multi_tasker.png"
+  },
+  {
+    "badgeId": "consistency_king",
+    "name": "Consistency King",
+    "description": "Maintain perfect consistency across all activities.",
+    "category": "Special Achievements",
+    "price": 1200,
+    "iconUrl": "https://example.com/icons/consistency_king.png"
+  },
+  {
+    "badgeId": "all_rounder",
+    "name": "All-Rounder",
+    "description": "Excel in all categories: attendance, assignments, quizzes, and more.",
+    "category": "Special Achievements",
+    "price": 1500,
+    "iconUrl": "https://example.com/icons/all_rounder.png"
+  },
+  {
+    "badgeId": "dedication_diamond",
+    "name": "Dedication Diamond",
+    "description": "Show exceptional dedication for 3 consecutive months.",
+    "category": "Special Achievements",
+    "price": 1800,
+    "iconUrl": "https://example.com/icons/dedication_diamond.png"
+  },
+  {
+    "badgeId": "top_performer",
+    "name": "Top Performer",
+    "description": "Rank in the top 10% of all students.",
+    "category": "Special Achievements",
+    "price": 2000,
+    "iconUrl": "https://example.com/icons/top_performer.png"
+  },
+  {
+    "badgeId": "math_whiz",
+    "name": "Math Whiz",
+    "description": "Master 20 mathematics topics with AI assistance.",
+    "category": "AI Learning",
+    "price": 700,
+    "iconUrl": "https://example.com/icons/math_whiz.png"
+  },
+  {
+    "badgeId": "science_savant",
+    "name": "Science Savant",
+    "description": "Complete 15 science learning modules.",
+    "category": "AI Learning",
+    "price": 700,
+    "iconUrl": "https://example.com/icons/science_savant.png"
+  },
+  {
+    "badgeId": "language_learner",
+    "name": "Language Learner",
+    "description": "Master 10 English language topics.",
+    "category": "AI Learning",
+    "price": 600,
+    "iconUrl": "https://example.com/icons/language_learner.png"
+  },
+  {
+    "badgeId": "history_hunter",
+    "name": "History Hunter",
+    "description": "Explore 15 social studies topics.",
+    "category": "AI Learning",
+    "price": 600,
+    "iconUrl": "https://example.com/icons/history_hunter.png"
+  },
+  {
+    "badgeId": "quick_learner",
+    "name": "Quick Learner",
+    "description": "Complete 5 topics in a single day.",
+    "category": "Learning Streaks",
+    "price": 400,
+    "iconUrl": "https://example.com/icons/quick_learner.png"
+  },
+  {
+    "badgeId": "deep_diver",
+    "name": "Deep Diver",
+    "description": "Spend 2+ hours studying in one session.",
+    "category": "Learning Streaks",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/deep_diver.png"
+  },
+  {
+    "badgeId": "knowledge_seeker",
+    "name": "Knowledge Seeker",
+    "description": "Complete 30 different learning topics.",
+    "category": "Learning Streaks",
+    "price": 800,
+    "iconUrl": "https://example.com/icons/knowledge_seeker.png"
+  },
+  {
+    "badgeId": "topic_titan",
+    "name": "Topic Titan",
+    "description": "Master 50 different study topics.",
+    "category": "Learning Streaks",
+    "price": 1200,
+    "iconUrl": "https://example.com/icons/topic_titan.png"
+  },
+  {
+    "badgeId": "assignment_architect",
+    "name": "Assignment Architect",
+    "description": "Design and submit exceptional assignments.",
+    "category": "Assignments",
+    "price": 700,
+    "iconUrl": "https://example.com/icons/assignment_architect.png"
+  },
+  {
+    "badgeId": "creative_thinker",
+    "name": "Creative Thinker",
+    "description": "Submit 5 creative and innovative assignments.",
+    "category": "Assignments",
+    "price": 600,
+    "iconUrl": "https://example.com/icons/creative_thinker.png"
+  },
+  {
+    "badgeId": "quiz_quick",
+    "name": "Quiz Quick",
+    "description": "Answer 10 quiz questions correctly in under 2 minutes.",
+    "category": "Quiz",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/quiz_quick.png"
+  },
+  {
+    "badgeId": "comeback_kid",
+    "name": "Comeback Kid",
+    "description": "Improve your quiz score by 20% or more.",
+    "category": "Quiz",
+    "price": 400,
+    "iconUrl": "https://example.com/icons/comeback_kid.png"
+  },
+  {
+    "badgeId": "motivation_maestro",
+    "name": "Motivation Maestro",
+    "description": "Maintain high motivation for 30 consecutive days.",
+    "category": "Motivation",
+    "price": 900,
+    "iconUrl": "https://example.com/icons/motivation_maestro.png"
+  },
+  {
+    "badgeId": "positive_thinker",
+    "name": "Positive Thinker",
+    "description": "Stay positive and motivated through challenges.",
+    "category": "Motivation",
+    "price": 500,
+    "iconUrl": "https://example.com/icons/positive_thinker.png"
+  },
+  {
+    "badgeId": "community_builder",
+    "name": "Community Builder",
+    "description": "Create or organize a successful study group.",
+    "category": "Community",
+    "price": 900,
+    "iconUrl": "https://example.com/icons/community_builder.png"
+  },
+  {
+    "badgeId": "supportive_soul",
+    "name": "Supportive Soul",
+    "description": "Provide helpful feedback to 10 classmates.",
+    "category": "Community",
+    "price": 600,
+    "iconUrl": "https://example.com/icons/supportive_soul.png"
+  }
+]
+
