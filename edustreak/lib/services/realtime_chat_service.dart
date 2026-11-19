@@ -1,18 +1,38 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
+import '../models/user_model.dart';
+import 'in_app_notification_service.dart';
 
 class RealtimeChatService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore? get _firestoreOrNull {
+    try {
+      return FirebaseFirestore.instance;
+    } catch (_) {
+      return null;
+    }
+  }
 
-  String _buildChatId(String uidA, String uidB) {
+  FirebaseStorage? get _storageOrNull {
+    try {
+      return FirebaseStorage.instance;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String buildChatId(String uidA, String uidB) {
     final ids = [uidA, uidB]..sort();
     return ids.join('_');
   }
 
-  String _chatType(String roleA, String roleB) {
-    final roles = [roleA, roleB]..sort();
+  String chatType(String roleA, String roleB) {
+    final roles = [roleA.toLowerCase(), roleB.toLowerCase()]..sort();
     final joined = roles.join('_');
     switch (joined) {
       case 'parent_teacher':
@@ -21,6 +41,18 @@ class RealtimeChatService {
         return 'student_student';
       case 'student_teacher':
         return 'student_teacher';
+      case 'principal_teacher':
+        return 'principal_teacher';
+      case 'parent_principal':
+        return 'parent_principal';
+      case 'parent_student':
+        return 'parent_student';
+      case 'admin_principal':
+        return 'admin_principal';
+      case 'admin_teacher':
+      case 'admin_student':
+      case 'admin_parent':
+        return 'admin_direct';
       default:
         return 'direct';
     }
@@ -29,25 +61,80 @@ class RealtimeChatService {
   Future<ChatModel> getOrCreateChat({
     required String currentUserId,
     required String currentUserRole,
+    String? currentUserName,
     required String otherUserId,
     required String otherUserRole,
+    String? otherUserName,
+    String? schoolId,
   }) async {
-    final chatId = _buildChatId(currentUserId, otherUserId);
-    final chatRef = _firestore.collection('chats').doc(chatId);
+    final firestore = _firestoreOrNull;
+    final chatId = buildChatId(currentUserId, otherUserId);
+    if (firestore == null) {
+      return ChatModel(
+        id: chatId,
+        participants: [currentUserId, otherUserId]..sort(),
+        type: chatType(currentUserRole, otherUserRole),
+        lastMessage: '',
+        lastUpdated: DateTime.now(),
+        participantRoles: {
+          currentUserId: currentUserRole,
+          otherUserId: otherUserRole,
+        },
+        participantNames: {
+          if (currentUserName != null) currentUserId: currentUserName,
+          if (otherUserName != null) otherUserId: otherUserName,
+        },
+        schoolId: schoolId,
+      );
+    }
 
-    return _firestore.runTransaction((transaction) async {
+    final chatRef = firestore.collection('chats').doc(chatId);
+
+    return firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(chatRef);
 
       if (snapshot.exists) {
-        return ChatModel.fromMap(snapshot.data()!, snapshot.id);
+        final existing = snapshot.data()!;
+        final updatedData = <String, dynamic>{};
+        if (currentUserName != null && (existing['participantNames']?[currentUserId] == null)) {
+          updatedData['participantNames.$currentUserId'] = currentUserName;
+        }
+        if (otherUserName != null && (existing['participantNames']?[otherUserId] == null)) {
+          updatedData['participantNames.$otherUserId'] = otherUserName;
+        }
+        if (schoolId != null && existing['schoolId'] == null) {
+          updatedData['schoolId'] = schoolId;
+        }
+        if (updatedData.isNotEmpty) {
+          transaction.update(chatRef, updatedData);
+        }
+        return ChatModel.fromMap(existing, snapshot.id);
       }
 
       final participants = [currentUserId, otherUserId]..sort();
       final chatData = {
         'participants': participants,
-        'type': _chatType(currentUserRole, otherUserRole),
+        'type': chatType(currentUserRole, otherUserRole),
         'lastMessage': '',
         'lastUpdated': FieldValue.serverTimestamp(),
+        'participantRoles': {
+          currentUserId: currentUserRole,
+          otherUserId: otherUserRole,
+        },
+        'participantNames': {
+          if (currentUserName != null) currentUserId: currentUserName,
+          if (otherUserName != null) otherUserId: otherUserName,
+        },
+        'unreadCounts': {
+          currentUserId: 0,
+          otherUserId: 0,
+        },
+        'isPinned': false,
+        'isMuted': {
+          currentUserId: false,
+          otherUserId: false,
+        },
+        if (schoolId != null) 'schoolId': schoolId,
       };
 
       transaction.set(chatRef, chatData);
@@ -56,7 +143,11 @@ class RealtimeChatService {
   }
 
   Stream<List<ChatModel>> getUserChatsStream(String userId) {
-    return _firestore
+    final firestore = _firestoreOrNull;
+    if (firestore == null) {
+      return const Stream.empty();
+    }
+    return firestore
         .collection('chats')
         .where('participants', arrayContains: userId)
         .snapshots()
@@ -64,8 +155,10 @@ class RealtimeChatService {
           final chats = snapshot.docs
               .map((doc) => ChatModel.fromMap(doc.data(), doc.id))
               .toList();
-          // Sort by lastUpdated in memory (descending - most recent first)
           chats.sort((a, b) {
+            if (a.isPinned != b.isPinned) {
+              return a.isPinned ? -1 : 1;
+            }
             if (a.lastUpdated == null && b.lastUpdated == null) return 0;
             if (a.lastUpdated == null) return 1;
             if (b.lastUpdated == null) return -1;
@@ -75,8 +168,87 @@ class RealtimeChatService {
         });
   }
 
+  Stream<ChatModel?> streamChat(String chatId) {
+    final firestore = _firestoreOrNull;
+    if (firestore == null) {
+      return const Stream.empty();
+    }
+    return firestore
+        .collection('chats')
+        .doc(chatId)
+        .snapshots()
+        .map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) return null;
+      return ChatModel.fromMap(snapshot.data()!, snapshot.id);
+    });
+  }
+
+  Future<void> setTypingStatus({
+    required String chatId,
+    required String userId,
+    required bool isTyping,
+  }) async {
+    final firestore = _firestoreOrNull;
+    if (firestore == null) return;
+    try {
+      await firestore.collection('chats').doc(chatId).update({
+        'typingUsers.$userId': isTyping,
+      });
+    } catch (_) {}
+  }
+
+  Stream<int> getTotalUnreadCountStream(String userId) {
+    final firestore = _firestoreOrNull;
+    if (firestore == null) {
+      return Stream.value(0);
+    }
+    return firestore
+        .collection('chats')
+        .where('participants', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      int count = 0;
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final unreadCounts = data['unreadCounts'];
+        if (unreadCounts is Map && unreadCounts[userId] is num) {
+          count += (unreadCounts[userId] as num).toInt();
+        }
+      }
+      return count;
+    });
+  }
+
+  Future<String?> uploadChatAttachment({
+    required String chatId,
+    required String fileName,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final storage = _storageOrNull;
+    if (storage == null) return null;
+    try {
+      final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final path = 'chat_attachments/$chatId/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+      final ref = storage.ref().child(path);
+      final metadata = SettableMetadata(
+        contentType: contentType,
+        customMetadata: {'chatId': chatId},
+      );
+      final uploadTask = await ref.putData(bytes, metadata);
+      return await uploadTask.ref.getDownloadURL();
+    } catch (e) {
+      debugPrint('Error uploading chat attachment: $e');
+      return null;
+    }
+  }
+
   Stream<List<MessageModel>> streamMessages(String chatId) {
-    return _firestore
+    final firestore = _firestoreOrNull;
+    if (firestore == null) {
+      return const Stream.empty();
+    }
+    return firestore
         .collection('chats')
         .doc(chatId)
         .collection('messages')
@@ -95,21 +267,39 @@ class RealtimeChatService {
   Future<void> sendMessage({
     required String senderId,
     required String senderRole,
+    String? senderName,
     required String receiverId,
     required String receiverRole,
+    String? receiverName,
     required String text,
+    String type = 'text',
+    String? attachmentUrl,
+    String? attachmentName,
+    int? attachmentSize,
+    String? replyToId,
+    String? replyToText,
+    String? replyToSender,
+    String? schoolId,
   }) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty && attachmentUrl == null) return;
 
-    final chatId = _buildChatId(senderId, receiverId);
-    final chatRef = _firestore.collection('chats').doc(chatId);
+    final firestore = _firestoreOrNull;
+    if (firestore == null) return;
+
+    final chatId = buildChatId(senderId, receiverId);
+    final chatRef = firestore.collection('chats').doc(chatId);
     final messagesRef = chatRef.collection('messages');
     final messageDoc = messagesRef.doc();
 
-    final chatType = _chatType(senderRole, receiverRole);
+    final cType = chatType(senderRole, receiverRole);
+    final displaySummary = type == 'image'
+        ? '📷 Photo'
+        : type == 'file'
+            ? '📎 ${attachmentName ?? "File"}'
+            : trimmed;
 
-    await _firestore.runTransaction((transaction) async {
+    await firestore.runTransaction((transaction) async {
       final now = FieldValue.serverTimestamp();
 
       transaction.set(
@@ -118,9 +308,23 @@ class RealtimeChatService {
           'id': messageDoc.id,
           'chatId': chatId,
           'senderId': senderId,
+          if (senderName != null) 'senderName': senderName,
+          'senderRole': senderRole,
           'text': trimmed,
           'timestamp': now,
           'read': false,
+          'readBy': [senderId],
+          'type': type,
+          if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
+          if (attachmentName != null) 'attachmentName': attachmentName,
+          if (attachmentSize != null) 'attachmentSize': attachmentSize,
+          if (replyToId != null) 'replyToId': replyToId,
+          if (replyToText != null) 'replyToText': replyToText,
+          if (replyToSender != null) 'replyToSender': replyToSender,
+          'reactions': {},
+          'isEdited': false,
+          'isDeleted': false,
+          'deliveryStatus': 'sent',
         },
       );
 
@@ -128,34 +332,491 @@ class RealtimeChatService {
         chatRef,
         {
           'participants': [senderId, receiverId]..sort(),
-          'type': chatType,
-          'lastMessage': trimmed,
+          'type': cType,
+          'lastMessage': displaySummary,
           'lastUpdated': now,
+          'lastMessageSenderId': senderId,
+          'unreadCounts.$receiverId': FieldValue.increment(1),
+          'unreadCounts.$senderId': 0,
+          'typingUsers.$senderId': false,
+          'participantRoles.$senderId': senderRole,
+          'participantRoles.$receiverId': receiverRole,
+          if (senderName != null) 'participantNames.$senderId': senderName,
+          if (receiverName != null) 'participantNames.$receiverId': receiverName,
+          if (schoolId != null) 'schoolId': schoolId,
         },
         SetOptions(merge: true),
       );
     });
+
+    // Dispatch real-time in-app notification to the recipient
+    try {
+      await InAppNotificationService().sendNotification(
+        userId: receiverId,
+        title: 'New message from ${senderName ?? "User"}',
+        body: displaySummary,
+        type: 'message',
+        metadata: {
+          'chatId': chatId,
+          'senderId': senderId,
+          'senderName': senderName ?? 'User',
+          'senderRole': senderRole,
+        },
+      );
+    } catch (e) {
+      debugPrint('Error sending message notification: $e');
+    }
   }
 
   Future<void> markChatAsRead({
     required String currentUserId,
     required String otherUserId,
+    String? chatId,
   }) async {
-    final chatId = _buildChatId(currentUserId, otherUserId);
-    final unreadSnapshot = await _firestore
+    final firestore = _firestoreOrNull;
+    if (firestore == null) return;
+
+    final resolvedChatId = chatId ?? buildChatId(currentUserId, otherUserId);
+    final chatRef = firestore.collection('chats').doc(resolvedChatId);
+
+    // Reset unread counter for current user
+    try {
+      await chatRef.update({'unreadCounts.$currentUserId': 0});
+    } catch (_) {
+      // Chat may not exist yet or no counter field, ignore
+    }
+
+    final unreadSnapshot = await firestore
         .collection('chats')
-        .doc(chatId)
+        .doc(resolvedChatId)
         .collection('messages')
         .where('read', isEqualTo: false)
         .get();
 
-    final batch = _firestore.batch();
+    if (unreadSnapshot.docs.isEmpty) return;
+
+    final batch = firestore.batch();
     for (final doc in unreadSnapshot.docs) {
       final senderId = doc.data()['senderId'];
       if (senderId != currentUserId) {
-        batch.update(doc.reference, {'read': true});
+        batch.update(doc.reference, {
+          'read': true,
+          'readBy': FieldValue.arrayUnion([currentUserId]),
+        });
       }
     }
     await batch.commit();
   }
-}
+
+  Future<void> toggleReaction({
+    required String chatId,
+    required String messageId,
+    required String emoji,
+    required String userId,
+  }) async {
+    final firestore = _firestoreOrNull;
+    if (firestore == null) return;
+
+    final messageRef = firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId);
+
+    await firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(messageRef);
+      if (!snapshot.exists) return;
+
+      final data = snapshot.data() ?? {};
+      final rawReactions = (data['reactions'] as Map<String, dynamic>?) ?? {};
+      final reactions = <String, List<String>>{};
+      rawReactions.forEach((k, v) {
+        if (v is List) {
+          reactions[k] = v.map((e) => e.toString()).toList();
+        }
+      });
+
+      final currentUsers = reactions[emoji] ?? [];
+      if (currentUsers.contains(userId)) {
+        currentUsers.remove(userId);
+        if (currentUsers.isEmpty) {
+          reactions.remove(emoji);
+        } else {
+          reactions[emoji] = currentUsers;
+        }
+      } else {
+        reactions[emoji] = [...currentUsers, userId];
+      }
+
+      transaction.update(messageRef, {'reactions': reactions});
+    });
+  }
+
+  Future<void> editMessage({
+    required String chatId,
+    required String messageId,
+    required String newText,
+  }) async {
+    final firestore = _firestoreOrNull;
+    if (firestore == null) return;
+
+    final trimmed = newText.trim();
+    if (trimmed.isEmpty) return;
+
+    final messageRef = firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId);
+
+    await messageRef.update({
+      'text': trimmed,
+      'isEdited': true,
+    });
+  }
+
+  Future<void> deleteMessage({
+    required String chatId,
+    required String messageId,
+    bool softDelete = true,
+  }) async {
+    final firestore = _firestoreOrNull;
+    if (firestore == null) return;
+
+    final messageRef = firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId);
+
+    if (softDelete) {
+      await messageRef.update({
+        'text': 'This message was deleted',
+        'isDeleted': true,
+        'attachmentUrl': FieldValue.delete(),
+        'attachmentName': FieldValue.delete(),
+        'attachmentSize': FieldValue.delete(),
+      });
+    } else {
+      await messageRef.delete();
+    }
+  }
+
+  Future<void> togglePinChat({
+    required String chatId,
+    required bool currentIsPinned,
+  }) async {
+    final firestore = _firestoreOrNull;
+    if (firestore == null) return;
+
+    final chatRef = firestore.collection('chats').doc(chatId);
+    await chatRef.update({'isPinned': !currentIsPinned});
+  }
+
+  Future<void> toggleMuteChat({
+    required String chatId,
+    required String userId,
+    required bool currentMuted,
+  }) async {
+    final firestore = _firestoreOrNull;
+    if (firestore == null) return;
+
+    final chatRef = firestore.collection('chats').doc(chatId);
+    await chatRef.update({'isMuted.$userId': !currentMuted});
+  }
+
+  /// Consolidated role-based contact discovery for Student, Teacher, Parent, Principal, Admin
+  Future<List<Map<String, dynamic>>> getAvailableContacts(UserModel currentUser) async {
+    final firestore = _firestoreOrNull;
+    if (firestore == null) return [];
+
+    final Map<String, Map<String, dynamic>> contactMap = {};
+
+    void addContact(QueryDocumentSnapshot doc, {String fallbackName = 'User', String fallbackRole = 'user'}) {
+      if (doc.id == currentUser.id) return;
+      final data = doc.data() as Map<String, dynamic>;
+      final rawName = (data['name'] as String?)?.trim() ?? '';
+      final role = (data['role'] as String?) ?? fallbackRole;
+      contactMap[doc.id] = {
+        'id': doc.id,
+        'name': rawName.isEmpty ? fallbackName : rawName,
+        'role': role,
+        'email': data['email'] ?? '',
+        'schoolId': data['schoolId'] ?? '',
+        'grade': data['grade'] ?? '',
+        'section': data['section'] ?? '',
+        'profileImageUrl': data['profileImageUrl'],
+        'assignedSubjects': data['assignedSubjects'] ?? [],
+      };
+    }
+
+    List<List<String>> chunk(List<String> source, int size) {
+      if (source.isEmpty) return [];
+      if (source.length <= size) return [List<String>.from(source)];
+      final chunks = <List<String>>[];
+      for (var i = 0; i < source.length; i += size) {
+        chunks.add(source.sublist(i, math.min(i + size, source.length)));
+      }
+      return chunks;
+    }
+
+    Future<void> addAdmins() async {
+      try {
+        final adminsSnapshot = await firestore
+            .collection('users')
+            .where('role', isEqualTo: 'admin')
+            .get();
+        for (final doc in adminsSnapshot.docs) {
+          addContact(doc, fallbackName: 'Platform Administrator', fallbackRole: 'admin');
+        }
+      } catch (_) {}
+    }
+
+    try {
+      final role = currentUser.role.toLowerCase();
+
+      if (role == 'student') {
+        final studentClasses = <String>[
+          if (currentUser.classId != null && currentUser.classId!.isNotEmpty) currentUser.classId!,
+          ...(currentUser.classIds ?? []),
+        ];
+
+        for (final classId in studentClasses) {
+          // Assigned teachers with classIds array
+          final teachersSnap1 = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'teacher')
+              .where('classIds', arrayContains: classId)
+              .get();
+          for (final doc in teachersSnap1.docs) {
+            addContact(doc, fallbackName: 'Teacher', fallbackRole: 'teacher');
+          }
+
+          // Assigned teachers with singular classId
+          final teachersSnap2 = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'teacher')
+              .where('classId', isEqualTo: classId)
+              .get();
+          for (final doc in teachersSnap2.docs) {
+            addContact(doc, fallbackName: 'Teacher', fallbackRole: 'teacher');
+          }
+
+          // Classmates
+          final classmatesSnapshot = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'student')
+              .where('classId', isEqualTo: classId)
+              .get();
+          for (final doc in classmatesSnapshot.docs) {
+            addContact(doc, fallbackName: 'Classmate', fallbackRole: 'student');
+          }
+        }
+
+        // Linked parent
+        final parentsSnapshot = await firestore
+            .collection('users')
+            .where('role', isEqualTo: 'parent')
+            .where('childId', isEqualTo: currentUser.id)
+            .get();
+        for (final doc in parentsSnapshot.docs) {
+          addContact(doc, fallbackName: 'Parent', fallbackRole: 'parent');
+        }
+
+        final parentsSnap2 = await firestore
+            .collection('users')
+            .where('role', isEqualTo: 'parent')
+            .where('childIds', arrayContains: currentUser.id)
+            .get();
+        for (final doc in parentsSnap2.docs) {
+          addContact(doc, fallbackName: 'Parent', fallbackRole: 'parent');
+        }
+
+        // Principal of school
+        if (currentUser.schoolId != null && currentUser.schoolId!.isNotEmpty) {
+          final principalSnap = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'principal')
+              .where('schoolId', isEqualTo: currentUser.schoolId)
+              .get();
+          for (final doc in principalSnap.docs) {
+            addContact(doc, fallbackName: 'Principal', fallbackRole: 'principal');
+          }
+        }
+
+        await addAdmins();
+      } else if (role == 'teacher') {
+        final classIds = <String>[
+          if (currentUser.classId != null && currentUser.classId!.isNotEmpty) currentUser.classId!,
+          ...(currentUser.classIds ?? []),
+        ];
+        final List<String> studentIds = [];
+
+        if (classIds.isNotEmpty) {
+          for (final classChunk in chunk(classIds, 10)) {
+            final studentsSnapshot = await firestore
+                .collection('users')
+                .where('role', isEqualTo: 'student')
+                .where('classId', whereIn: classChunk)
+                .get();
+            for (final doc in studentsSnapshot.docs) {
+              addContact(doc, fallbackName: 'Student', fallbackRole: 'student');
+              studentIds.add(doc.id);
+            }
+          }
+
+          for (final studentChunk in chunk(studentIds, 10)) {
+            final parentsSnapshot = await firestore
+                .collection('users')
+                .where('role', isEqualTo: 'parent')
+                .where('childId', whereIn: studentChunk)
+                .get();
+            for (final doc in parentsSnapshot.docs) {
+              addContact(doc, fallbackName: 'Parent', fallbackRole: 'parent');
+            }
+          }
+        }
+
+        // Fellow teachers in same school or platform
+        if (currentUser.schoolId != null && currentUser.schoolId!.isNotEmpty) {
+          final fellowTeachersSnapshot = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'teacher')
+              .where('schoolId', isEqualTo: currentUser.schoolId)
+              .get();
+          for (final doc in fellowTeachersSnapshot.docs) {
+            addContact(doc, fallbackName: 'Teacher', fallbackRole: 'teacher');
+          }
+
+          final principalsSnapshot = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'principal')
+              .where('schoolId', isEqualTo: currentUser.schoolId)
+              .get();
+          for (final doc in principalsSnapshot.docs) {
+            addContact(doc, fallbackName: 'Principal', fallbackRole: 'principal');
+          }
+        } else {
+          final otherTeachersSnapshot = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'teacher')
+              .get();
+          for (final doc in otherTeachersSnapshot.docs) {
+            addContact(doc, fallbackName: 'Teacher', fallbackRole: 'teacher');
+          }
+        }
+
+        await addAdmins();
+      } else if (role == 'principal') {
+        if (currentUser.schoolId != null && currentUser.schoolId!.isNotEmpty) {
+          final teachersSnapshot = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'teacher')
+              .where('schoolId', isEqualTo: currentUser.schoolId)
+              .get();
+          for (final doc in teachersSnapshot.docs) {
+            addContact(doc, fallbackName: 'Teacher', fallbackRole: 'teacher');
+          }
+
+          final studentsSnapshot = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'student')
+              .where('schoolId', isEqualTo: currentUser.schoolId)
+              .limit(50)
+              .get();
+          for (final doc in studentsSnapshot.docs) {
+            addContact(doc, fallbackName: 'Student', fallbackRole: 'student');
+          }
+
+          final parentsSnapshot = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'parent')
+              .where('schoolId', isEqualTo: currentUser.schoolId)
+              .limit(50)
+              .get();
+          for (final doc in parentsSnapshot.docs) {
+            addContact(doc, fallbackName: 'Parent', fallbackRole: 'parent');
+          }
+        }
+        await addAdmins();
+      } else if (role == 'parent') {
+        final childIds = <String>[
+          if (currentUser.childId != null && currentUser.childId!.isNotEmpty) currentUser.childId!,
+          ...currentUser.childIds,
+        ];
+
+        for (final childChunk in chunk(childIds, 10)) {
+          final childrenSnapshot = await firestore
+              .collection('users')
+              .where(FieldPath.documentId, whereIn: childChunk)
+              .get();
+
+          final List<String> childClassIds = [];
+          String? childSchoolId;
+          for (final childDoc in childrenSnapshot.docs) {
+            addContact(childDoc, fallbackName: 'Child / Student', fallbackRole: 'student');
+            final childData = childDoc.data();
+            final classId = childData['classId'] as String?;
+            if (classId != null && classId.isNotEmpty) {
+              childClassIds.add(classId);
+            }
+            if (childSchoolId == null && childData['schoolId'] != null) {
+              childSchoolId = childData['schoolId'] as String?;
+            }
+          }
+
+          for (final classChunk in chunk(childClassIds, 10)) {
+            final teachersSnapshot = await firestore
+                .collection('users')
+                .where('role', isEqualTo: 'teacher')
+                .where('classIds', arrayContainsAny: classChunk)
+                .get();
+            for (final doc in teachersSnapshot.docs) {
+              addContact(doc, fallbackName: 'Teacher', fallbackRole: 'teacher');
+            }
+
+            final teachersSnap2 = await firestore
+                .collection('users')
+                .where('role', isEqualTo: 'teacher')
+                .where('classId', whereIn: classChunk)
+                .get();
+            for (final doc in teachersSnap2.docs) {
+              addContact(doc, fallbackName: 'Teacher', fallbackRole: 'teacher');
+            }
+          }
+
+          if (childSchoolId != null && childSchoolId.isNotEmpty) {
+            final principalSnap = await firestore
+                .collection('users')
+                .where('role', isEqualTo: 'principal')
+                .where('schoolId', isEqualTo: childSchoolId)
+                .get();
+            for (final doc in principalSnap.docs) {
+              addContact(doc, fallbackName: 'Principal', fallbackRole: 'principal');
+            }
+          }
+        }
+        await addAdmins();
+      } else if (role == 'admin') {
+        final principals = await firestore
+            .collection('users')
+            .where('role', isEqualTo: 'principal')
+            .limit(50)
+            .get();
+        for (final doc in principals.docs) {
+          addContact(doc, fallbackName: 'Principal', fallbackRole: 'principal');
+        }
+        final teachers = await firestore
+            .collection('users')
+            .where('role', isEqualTo: 'teacher')
+            .limit(50)
+            .get();
+        for (final doc in teachers.docs) {
+          addContact(doc, fallbackName: 'Teacher', fallbackRole: 'teacher');
+        }
+      }
+    } catch (_) {}
+
+    return contactMap.values.toList();
+  }
+}

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import '../../utils/edustreak_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../providers/user_provider.dart';
 import '../../services/attendance_service.dart';
-import '../../services/attendance_summary_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/attendance_model.dart';
 
 class StudentAttendanceScreen extends StatefulWidget {
-  const StudentAttendanceScreen({super.key});
+  final bool showAppBar;
+  const StudentAttendanceScreen({super.key, this.showAppBar = false});
 
   @override
   State<StudentAttendanceScreen> createState() => _StudentAttendanceScreenState();
@@ -18,7 +20,6 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
   DateTime _selectedDay = DateTime.now();
   CalendarFormat _calendarFormat = CalendarFormat.month;
   final AttendanceService _attendanceService = AttendanceService();
-  final AttendanceSummaryService _summaryService = AttendanceSummaryService();
   Map<String, AttendanceRecord> _attendanceRecords = {};
   Map<String, dynamic> _monthlyStats = {};
   bool _isLoading = true;
@@ -133,71 +134,259 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Attendance'),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+    final content = _isLoading
+          ? const Center(child: CircularProgressIndicator(color: EduStreakTheme.primaryViolet))
           : RefreshIndicator(
+              color: EduStreakTheme.primaryViolet,
               onRefresh: _loadAttendanceData,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 100),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Monthly Summary Card
+                    _buildPageHeader(),
+                    const SizedBox(height: 20),
                     _buildMonthlySummaryCard(student.id),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Calendar View
+                    const SizedBox(height: 20),
                     _buildCalendarView(),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Attendance Legend
+                    const SizedBox(height: 20),
                     _buildLegend(),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Selected Day Details
+                    const SizedBox(height: 20),
                     _buildSelectedDayDetails(),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Info message if no attendance data
-                    if (_monthlyStats['totalDays'] == 0)
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blue.shade200),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.info_outline, color: Colors.blue.shade700),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'No attendance records found for this month. Attendance will appear here once your teacher marks it.',
-                                  style: TextStyle(
-                                    color: Colors.blue.shade900,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
-            ),
+            );
+
+    if (widget.showAppBar) {
+      return Scaffold(
+        backgroundColor: EduStreakTheme.studentDarkBg,
+        appBar: AppBar(
+          title: const Text('My Attendance'),
+          backgroundColor: EduStreakTheme.studentDarkHeader,
+          foregroundColor: Colors.white,
+        ),
+        body: content,
+      );
+    }
+
+    return Container(
+      color: EduStreakTheme.studentDarkBg,
+      child: content,
     );
+  }
+
+  Widget _buildPageHeader() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 540;
+
+        final titleSection = Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: EduStreakTheme.primaryViolet.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: EduStreakTheme.primaryViolet.withValues(alpha: 0.4),
+                  width: 1.2,
+                ),
+              ),
+              child: const Icon(Icons.calendar_month_rounded, color: EduStreakTheme.primaryViolet, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Attendance Tracker',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('📅', style: TextStyle(fontSize: 18)),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Track your daily presence, leaves, and maintain your 90%+ streak!',
+                    style: TextStyle(
+                      color: EduStreakTheme.studentDarkTextMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+
+        final actionBtn = OutlinedButton.icon(
+          onPressed: _showCorrectionDialog,
+          icon: const Icon(Icons.edit_calendar_rounded, size: 16, color: EduStreakTheme.primaryViolet),
+          label: const Text('Correction Request', style: TextStyle(color: EduStreakTheme.primaryViolet, fontSize: 12, fontWeight: FontWeight.w700)),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: EduStreakTheme.primaryViolet, width: 1.2),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+        );
+
+        if (isCompact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleSection,
+              const SizedBox(height: 12),
+              actionBtn,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: titleSection),
+            const SizedBox(width: 12),
+            actionBtn,
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showCorrectionDialog() async {
+    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+    if (user == null) return;
+
+    DateTime disputedDate = _selectedDay;
+    String requestedStatus = 'present';
+    final reasonController = TextEditingController();
+
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          backgroundColor: EduStreakTheme.studentDarkCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.edit_calendar_rounded, color: EduStreakTheme.primaryViolet, size: 22),
+              SizedBox(width: 10),
+              Text('Attendance Correction', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Submit a correction request to your class teacher if your attendance was recorded incorrectly.',
+                  style: TextStyle(color: EduStreakTheme.studentDarkTextMuted, fontSize: 13)),
+              const SizedBox(height: 16),
+              Text('Disputed Date: ${disputedDate.day}/${disputedDate.month}/${disputedDate.year}',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+              const SizedBox(height: 12),
+              const Text('Claimed Status:', style: TextStyle(color: EduStreakTheme.studentDarkTextMuted, fontSize: 12)),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                value: requestedStatus,
+                dropdownColor: EduStreakTheme.studentDarkCard,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: EduStreakTheme.studentDarkBg,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'present', child: Text('Present (Present in class)')),
+                  DropdownMenuItem(value: 'leave', child: Text('Approved Leave (Sick/Permitted)')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setDlgState(() => requestedStatus = val);
+                },
+              ),
+              const SizedBox(height: 12),
+              const Text('Reason / Explanation:', style: TextStyle(color: EduStreakTheme.studentDarkTextMuted, fontSize: 12)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Present for all periods; medical certificate submitted to teacher.',
+                  hintStyle: const TextStyle(color: EduStreakTheme.studentDarkTextMuted, fontSize: 12),
+                  filled: true,
+                  fillColor: EduStreakTheme.studentDarkBg,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: EduStreakTheme.studentDarkTextMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: EduStreakTheme.primaryViolet,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Submit Request'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (submitted == true && mounted) {
+      try {
+        final docRef = FirebaseFirestore.instance.collection('attendance_corrections').doc();
+        await docRef.set({
+          'id': docRef.id,
+          'studentId': user.id,
+          'studentName': user.name,
+          'schoolId': user.schoolId ?? 'default_school',
+          'classId': user.classId ?? '',
+          'date': Timestamp.fromDate(disputedDate),
+          'requestedStatus': requestedStatus,
+          'reason': reasonController.text.trim(),
+          'status': 'pending',
+          'createdAt': Timestamp.now(),
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('📬 Correction request submitted to class teacher.'),
+              backgroundColor: Color(0xFF10B981),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to submit request: $e'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildMonthlySummaryCard(String studentId) {
@@ -207,20 +396,15 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
     final percentage = _monthlyStats['percentage'] ?? 0.0;
 
     return Container(
-      margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).colorScheme.primary,
-            Theme.of(context).colorScheme.secondary,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: 0.28),
+            blurRadius: 18,
             offset: const Offset(0, 4),
           ),
         ],
@@ -333,14 +517,15 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
 
   Widget _buildCalendarView() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 16,
             offset: const Offset(0, 4),
           ),
         ],
@@ -359,14 +544,16 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
         startingDayOfWeek: StartingDayOfWeek.monday,
         calendarStyle: CalendarStyle(
           outsideDaysVisible: false,
-          weekendTextStyle: const TextStyle(color: Colors.red),
-          selectedDecoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
+          defaultTextStyle: const TextStyle(color: Colors.white),
+          weekendTextStyle: const TextStyle(color: Color(0xFFC4B5FD)),
+          selectedDecoration: const BoxDecoration(
+            gradient: EduStreakTheme.activePillGradient,
             shape: BoxShape.circle,
           ),
           todayDecoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.secondary.withOpacity(0.5),
+            color: const Color(0xFF7950FF).withValues(alpha: 0.35),
             shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFF7950FF), width: 1.2),
           ),
           markerDecoration: const BoxDecoration(
             color: Colors.transparent,
@@ -375,9 +562,18 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
           markersMaxCount: 1,
           markerSize: 8,
         ),
-        headerStyle: const HeaderStyle(
+        headerStyle: HeaderStyle(
           formatButtonVisible: true,
           titleCentered: true,
+          titleTextStyle: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+          formatButtonTextStyle: const TextStyle(color: Colors.white, fontSize: 12),
+          formatButtonDecoration: BoxDecoration(
+            color: EduStreakTheme.studentDarkCardSub,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: EduStreakTheme.studentDarkBorder),
+          ),
+          leftChevronIcon: const Icon(Icons.chevron_left, color: Colors.white),
+          rightChevronIcon: const Icon(Icons.chevron_right, color: Colors.white),
         ),
         onDaySelected: (selectedDay, focusedDay) {
           if (!isSameDay(_selectedDay, selectedDay)) {
@@ -406,7 +602,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
           markerBuilder: (context, date, events) {
             if (events.isEmpty) return null;
             
-            final record = events.first as AttendanceRecord;
+            final record = events.first;
             return Positioned(
               bottom: 1,
               child: Container(
@@ -445,9 +641,6 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
             );
           },
           selectedBuilder: (context, date, _) {
-            final dateKey = AttendanceService.getDateKey(date);
-            final record = _attendanceRecords[dateKey];
-            
             return Container(
               margin: const EdgeInsets.all(4),
               decoration: BoxDecoration(

@@ -5,7 +5,8 @@ import '../../providers/user_provider.dart';
 import '../../services/challenge_service.dart';
 
 class CreateChallengeScreen extends StatefulWidget {
-  const CreateChallengeScreen({super.key});
+  final bool showAppBar;
+  const CreateChallengeScreen({super.key, this.showAppBar = false});
 
   @override
   State<CreateChallengeScreen> createState() => _CreateChallengeScreenState();
@@ -161,17 +162,11 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
     final teacher = userProvider.currentUser;
 
     if (teacher?.classIds == null || teacher!.classIds!.isEmpty) {
-      return const Scaffold(
-        body: Center(child: Text('No classes assigned')),
-      );
+      return const Center(child: Text('No classes assigned', style: TextStyle(color: Colors.white54)));
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Challenge'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+    final bodyContent = SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -343,8 +338,17 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
             ),
           ],
         ),
-      ),
-    );
+      );
+
+    if (widget.showAppBar) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Create Challenge'),
+        ),
+        body: bodyContent,
+      );
+    }
+    return bodyContent;
   }
 }
 

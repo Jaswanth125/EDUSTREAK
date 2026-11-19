@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/skill_matrix_model.dart';
+import '../models/skill_intelligence_model.dart';
 import '../models/user_model.dart';
+import 'skill_intelligence_service.dart';
 
 class SkillMatrixService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -34,10 +36,10 @@ class SkillMatrixService {
                 .get()
                 .then((doc) => doc.data())
             : Future.value(null),
-        // Task submissions count only (not all data)
+        // Tasks count from tasks collection
         _firestore
-            .collection('taskSubmissions')
-            .where('studentId', isEqualTo: studentId)
+            .collection('tasks')
+            .where('assignedTo', arrayContains: studentId)
             .count()
             .get(),
         // Challenges count only
@@ -61,6 +63,21 @@ class SkillMatrixService {
       final challengeCompletion = await _calculateChallengeCompletionFast(studentId, challengeCount);
       final overallProgress = _calculateOverallProgressFast(student);
 
+      StudentSkillProfileModel? profile;
+      try {
+        final schoolId = student.schoolId ?? 'school_demo';
+        profile = await SkillIntelligenceService().calculateStudentSkillProfile(studentId, schoolId);
+      } catch (e) {
+        debugPrint('Error calculating intelligence profile: $e');
+      }
+
+      final conceptScore = (profile?.skills[SkillDimensionDef.conceptualUnderstanding]?.score ?? 0.0);
+      final problemScore = (profile?.skills[SkillDimensionDef.problemSolving]?.score ?? 0.0);
+      final criticalScore = (profile?.skills[SkillDimensionDef.criticalThinking]?.score ?? 0.0);
+      final applicationScore = (profile?.skills[SkillDimensionDef.applicationSkills]?.score ?? 0.0);
+      final disciplineScore = (profile?.skills[SkillDimensionDef.consistencyDiscipline]?.score ?? 0.0);
+      final communicationScore = (profile?.skills[SkillDimensionDef.communicationExpression]?.score ?? 0.0);
+
       return SkillMatrixModel(
         studentId: studentId,
         studentName: studentName,
@@ -70,6 +87,13 @@ class SkillMatrixService {
         participation: participation,
         challengeCompletion: challengeCompletion,
         overallProgress: overallProgress,
+        conceptualUnderstanding: conceptScore > 0 ? conceptScore : taskPerformance,
+        problemSolving: problemScore > 0 ? problemScore : challengeCompletion,
+        criticalThinking: criticalScore > 0 ? criticalScore : overallProgress,
+        applicationSkills: applicationScore > 0 ? applicationScore : taskPerformance,
+        consistencyDiscipline: disciplineScore > 0 ? disciplineScore : attendance,
+        communicationExpression: communicationScore > 0 ? communicationScore : participation,
+        profile: profile,
       );
     } catch (e) {
       debugPrint('Error calculating skill matrix: $e');
@@ -99,35 +123,41 @@ class SkillMatrixService {
     return (presentDays / totalDays) * 100;
   }
 
-  /// Fast task performance - only fetch completed tasks
+  /// Fast task performance - calculated directly from assigned and completed tasks
   Future<double> _calculateTaskPerformanceFast(String studentId, int totalTasks) async {
     if (totalTasks == 0) return 0.0;
     
     try {
-      // Only get submitted tasks with marks
-      final submittedSnapshot = await _firestore
-          .collection('taskSubmissions')
-          .where('studentId', isEqualTo: studentId)
-          .where('isSubmitted', isEqualTo: true)
-          .limit(50) // Limit to recent 50 for performance
+      final tasksSnapshot = await _firestore
+          .collection('tasks')
+          .where('assignedTo', arrayContains: studentId)
+          .limit(50)
           .get();
 
-      if (submittedSnapshot.docs.isEmpty) return 0.0;
+      if (tasksSnapshot.docs.isEmpty) return 0.0;
 
       double totalMarks = 0.0;
       double maxMarks = 0.0;
-      int completedTasks = submittedSnapshot.docs.length;
+      int completedTasks = 0;
 
-      for (final doc in submittedSnapshot.docs) {
+      for (final doc in tasksSnapshot.docs) {
         final data = doc.data();
-        final marks = (data['marks'] as num?)?.toDouble() ?? 0.0;
-        final maxMarksForTask = (data['maxMarks'] as num?)?.toDouble() ?? 100.0;
-        totalMarks += marks;
-        maxMarks += maxMarksForTask;
+        final submissions = data['submissions'] as Map<String, dynamic>? ?? {};
+        final marks = data['marks'] as Map<String, dynamic>? ?? {};
+        final subStatus = submissions[studentId];
+        final taskMaxMarks = (data['maxMarks'] as num?)?.toDouble() ?? 100.0;
+
+        if (subStatus == 'submitted' || subStatus == 'completed' || marks.containsKey(studentId)) {
+          completedTasks++;
+          if (marks.containsKey(studentId)) {
+            totalMarks += (marks[studentId] as num?)?.toDouble() ?? 0.0;
+            maxMarks += taskMaxMarks;
+          }
+        }
       }
 
       final completionRate = (completedTasks / totalTasks) * 100;
-      final averageGrade = maxMarks > 0 ? (totalMarks / maxMarks) * 100 : 0.0;
+      final averageGrade = maxMarks > 0 ? (totalMarks / maxMarks) * 100 : (completedTasks > 0 ? 85.0 : 0.0);
 
       return (completionRate * 0.4) + (averageGrade * 0.6);
     } catch (e) {
@@ -160,14 +190,15 @@ class SkillMatrixService {
       final challengesSnapshot = await _firestore
           .collection('challenges')
           .where('assignedTo', arrayContains: studentId)
-          .limit(100) // Limit for performance
+          .limit(100)
           .get();
 
       int completedCount = 0;
       for (final doc in challengesSnapshot.docs) {
         final data = doc.data();
         final completedBy = List<String>.from(data['completedBy'] ?? []);
-        if (completedBy.contains(studentId)) {
+        final completions = data['completions'] as Map<String, dynamic>? ?? {};
+        if (completedBy.contains(studentId) || completions[studentId] == true) {
           completedCount++;
         }
       }

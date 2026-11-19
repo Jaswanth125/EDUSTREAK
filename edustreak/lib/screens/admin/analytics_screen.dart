@@ -260,7 +260,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       : (attendanceData.values.isNotEmpty
                           ? attendanceData.values.reduce((a, b) => a > b ? a : b).toDouble()
                           : 0.0);
-                  final chartMax = (maxValue == 0 ? 10.0 : (maxValue * 1.2).ceilToDouble()) as double;
+                  final chartMax = maxValue == 0 ? 10.0 : (maxValue * 1.2).ceilToDouble();
 
                   return BarChart(
                     BarChartData(

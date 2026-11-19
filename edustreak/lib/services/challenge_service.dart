@@ -3,7 +3,7 @@ import '../models/challenge_model.dart';
 import 'gamification_service.dart';
 
 class ChallengeService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   final GamificationService _gamificationService = GamificationService();
 
   Future<void> createChallenge({
@@ -221,7 +221,7 @@ class ChallengeService {
         .map((snapshot) {
       return snapshot.docs
           .map((doc) => ChallengeModel.fromMap(
-                doc.data() as Map<String, dynamic>..['id'] = doc.id,
+                doc.data()..['id'] = doc.id,
               ))
           .where((challenge) => challenge.isActive)
           .toList();
@@ -237,7 +237,7 @@ class ChallengeService {
         .map((snapshot) {
       return snapshot.docs
           .map((doc) => ChallengeModel.fromMap(
-                doc.data() as Map<String, dynamic>..['id'] = doc.id,
+                doc.data()..['id'] = doc.id,
               ))
           .toList();
     });

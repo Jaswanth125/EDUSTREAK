@@ -9,12 +9,14 @@ class SkillMatrixScreen extends StatefulWidget {
   final String studentId;
   final String? studentName;
   final bool showAppBar;
+  final bool isTeacher;
 
   const SkillMatrixScreen({
     super.key,
     required this.studentId,
     this.studentName,
     this.showAppBar = true,
+    this.isTeacher = false,
   });
 
   @override
@@ -205,6 +207,11 @@ class _SkillMatrixScreenState extends State<SkillMatrixScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 18),
+
+          // ── Two Pillars: Practice Diligence vs Tested Mastery ──
+          _buildDiligenceVsMasteryCards(skillMatrix),
+
           const SizedBox(height: 32),
           // Radar Chart
           Container(
@@ -346,42 +353,264 @@ class _SkillMatrixScreenState extends State<SkillMatrixScreen> {
     );
   }
 
+  Widget _buildDiligenceVsMasteryCards(SkillMatrixModel skillMatrix) {
+    final profile = skillMatrix.profile;
+    final hwRate = profile?.assignmentCompletionRate ?? skillMatrix.taskPerformance;
+    final testScore = profile?.assessmentPerformanceScore ?? skillMatrix.conceptualUnderstanding;
+    final totalHw = profile?.totalAssignmentsCount ?? 0;
+    final doneHw = profile?.completedAssignmentsCount ?? 0;
+    final totalTests = profile?.totalAssessmentsCount ?? 0;
+    final doneTests = profile?.completedAssessmentsCount ?? 0;
+
+    return Column(
+      children: [
+        // Two Pillars Row
+        Row(
+          children: [
+            // Pillar 1: Practice Diligence (Homework)
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.darkSurface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF10B981).withOpacity(0.35)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.assignment_turned_in_rounded, color: Color(0xFF10B981), size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Practice Diligence',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '${hwRate.toStringAsFixed(0)}%',
+                          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          doneHw > 0 ? '($doneHw of $totalHw tasks)' : 'Homework completion',
+                          style: const TextStyle(color: Colors.white54, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (hwRate / 100).clamp(0.0, 1.0),
+                        backgroundColor: Colors.white10,
+                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                        minHeight: 5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Pillar 2: Tested Mastery (Assessments)
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.darkSurface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF06B6D4).withOpacity(0.35)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF06B6D4).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.quiz_rounded, color: Color(0xFF06B6D4), size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Tested Mastery',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '${testScore.toStringAsFixed(0)}%',
+                          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          doneTests > 0 ? '($doneTests of $totalTests tests evaluated)' : 'Exam & quiz accuracy',
+                          style: const TextStyle(color: Colors.white54, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (testScore / 100).clamp(0.0, 1.0),
+                        backgroundColor: Colors.white10,
+                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF06B6D4)),
+                        minHeight: 5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 10),
+
+        // Distinction Explanatory Banner (User prompt Section 8)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF6C57FF).withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF6C57FF).withOpacity(0.2)),
+          ),
+          child: Row(
+            children: const [
+              Icon(Icons.info_outline_rounded, color: Color(0xFFA855F7), size: 16),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Practice Diligence tracks homework consistency and deadlines. Tested Mastery evaluates retention and problem solving under test conditions.',
+                  style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Strengths & Growth Areas (if available)
+        if (profile != null && (profile.strengths.isNotEmpty || profile.growthAreas.isNotEmpty)) ...[
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (profile.strengths.isNotEmpty)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: const [
+                            Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 14),
+                            SizedBox(width: 6),
+                            Text('Strong Concepts', style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ...profile.strengths.take(3).map((s) => Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Text('• $s', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                        )),
+                      ],
+                    ),
+                  ),
+                ),
+              if (profile.strengths.isNotEmpty && profile.growthAreas.isNotEmpty)
+                const SizedBox(width: 10),
+              if (profile.growthAreas.isNotEmpty)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: const [
+                            Icon(Icons.bolt_rounded, color: Colors.amber, size: 14),
+                            SizedBox(width: 6),
+                            Text('Focus Concepts', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ...profile.growthAreas.take(3).map((g) => Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Text('• $g', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                        )),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
   IconData _getSkillIcon(String skill) {
-    switch (skill) {
-      case 'Attendance':
-        return Icons.calendar_today;
-      case 'Task Performance':
-        return Icons.assignment;
-      case 'Engagement':
-        return Icons.trending_up;
-      case 'Participation':
-        return Icons.people;
-      case 'Challenges':
-        return Icons.emoji_events;
-      case 'Overall Progress':
-        return Icons.analytics;
-      default:
-        return Icons.star;
-    }
+    final lower = skill.toLowerCase();
+    if (lower.contains('concept')) return Icons.psychology_outlined;
+    if (lower.contains('problem')) return Icons.extension_outlined;
+    if (lower.contains('critical')) return Icons.lightbulb_outline_rounded;
+    if (lower.contains('application')) return Icons.build_circle_outlined;
+    if (lower.contains('consistency') || lower.contains('discipline') || lower.contains('attendance')) return Icons.rule_rounded;
+    if (lower.contains('communication') || lower.contains('expression') || lower.contains('participation')) return Icons.forum_outlined;
+    if (lower.contains('challenge')) return Icons.emoji_events;
+    if (lower.contains('task')) return Icons.assignment;
+    if (lower.contains('progress')) return Icons.analytics;
+    return Icons.star;
   }
 
   Color _getSkillColor(String skill) {
-    switch (skill) {
-      case 'Attendance':
-        return Colors.green;
-      case 'Task Performance':
-        return Colors.blue;
-      case 'Engagement':
-        return Colors.orange;
-      case 'Participation':
-        return Colors.purple;
-      case 'Challenges':
-        return Colors.amber;
-      case 'Overall Progress':
-        return AppTheme.primaryColor;
-      default:
-        return Colors.grey;
-    }
+    final lower = skill.toLowerCase();
+    if (lower.contains('concept')) return const Color(0xFF35C9FF);
+    if (lower.contains('problem')) return const Color(0xFF7950FF);
+    if (lower.contains('critical')) return const Color(0xFFFBBF24);
+    if (lower.contains('application')) return const Color(0xFF10B981);
+    if (lower.contains('consistency') || lower.contains('discipline') || lower.contains('attendance')) return const Color(0xFF3B82F6);
+    if (lower.contains('communication') || lower.contains('expression') || lower.contains('participation')) return const Color(0xFFEC4899);
+    return AppTheme.primaryColor;
   }
 }
 

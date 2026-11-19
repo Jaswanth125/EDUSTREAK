@@ -1,52 +1,73 @@
+import 'skill_intelligence_model.dart';
+
 class SkillMatrixModel {
   final String studentId;
   final String studentName;
-  final double attendance; // 0-100
-  final double taskPerformance; // 0-100
-  final double engagement; // 0-100
-  final double participation; // 0-100
-  final double challengeCompletion; // 0-100
-  final double overallProgress; // 0-100
+  final double attendance; // 0-100 (Legacy)
+  final double taskPerformance; // 0-100 (Legacy)
+  final double engagement; // 0-100 (Legacy)
+  final double participation; // 0-100 (Legacy)
+  final double challengeCompletion; // 0-100 (Legacy)
+  final double overallProgress; // 0-100 (Legacy)
+
+  // 6 Core Assessment Dimensions
+  final double conceptualUnderstanding;
+  final double problemSolving;
+  final double criticalThinking;
+  final double applicationSkills;
+  final double consistencyDiscipline;
+  final double communicationExpression;
+
+  final StudentSkillProfileModel? profile;
 
   SkillMatrixModel({
     required this.studentId,
     required this.studentName,
-    required this.attendance,
-    required this.taskPerformance,
-    required this.engagement,
-    required this.participation,
-    required this.challengeCompletion,
-    required this.overallProgress,
-  });
+    this.attendance = 0,
+    this.taskPerformance = 0,
+    this.engagement = 0,
+    this.participation = 0,
+    this.challengeCompletion = 0,
+    this.overallProgress = 0,
+    double? conceptualUnderstanding,
+    double? problemSolving,
+    double? criticalThinking,
+    double? applicationSkills,
+    double? consistencyDiscipline,
+    double? communicationExpression,
+    this.profile,
+  })  : conceptualUnderstanding = conceptualUnderstanding ?? taskPerformance,
+        problemSolving = problemSolving ?? challengeCompletion,
+        criticalThinking = criticalThinking ?? overallProgress,
+        applicationSkills = applicationSkills ?? taskPerformance,
+        consistencyDiscipline = consistencyDiscipline ?? attendance,
+        communicationExpression = communicationExpression ?? participation;
 
-  // Get all skill values as a list (for radar chart)
-  List<double> get skillValues => [
-        attendance,
-        taskPerformance,
-        engagement,
-        participation,
-        challengeCompletion,
-        overallProgress,
+  /// Get 6 core competency values in standard canonical order
+  List<double> get coreCompetencyValues => [
+        conceptualUnderstanding,
+        problemSolving,
+        criticalThinking,
+        applicationSkills,
+        consistencyDiscipline,
+        communicationExpression,
       ];
 
-  // Get skill labels
-  static List<String> get skillLabels => [
-        'Attendance',
-        'Task Performance',
-        'Engagement',
-        'Participation',
-        'Challenges',
-        'Overall Progress',
-      ];
+  /// Get 6 core competency labels
+  static List<String> get coreCompetencyLabels => SkillDimensionDef.allLabels;
 
-  // Calculate overall score (average of all skills)
+  // Legacy compatibility getters
+  List<double> get skillValues => coreCompetencyValues;
+  static List<String> get skillLabels => coreCompetencyLabels;
+
+  // Calculate overall score (average of the 6 core competency dimensions)
   double get overallScore {
-    final sum = attendance +
-        taskPerformance +
-        engagement +
-        participation +
-        challengeCompletion +
-        overallProgress;
+    final sum = conceptualUnderstanding +
+        problemSolving +
+        criticalThinking +
+        applicationSkills +
+        consistencyDiscipline +
+        communicationExpression;
     return sum / 6;
   }
 }

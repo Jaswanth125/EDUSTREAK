@@ -1,17 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:rxdart/rxdart.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import '../models/task_model.dart';
 import 'gamification_service.dart';
+import 'in_app_notification_service.dart';
 
 class TaskService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final GamificationService _gamificationService = GamificationService();
+  final InAppNotificationService _notificationService = InAppNotificationService();
 
-  Future<void> createTask({
+  Future<String> createTask({
     required String classId,
     required String title,
     required String description,
@@ -20,6 +22,13 @@ class TaskService {
     required DateTime dueDate,
     required List<String> assignedTo,
     String subject = '',
+    String schoolId = '',
+    String type = 'Homework',
+    String chapterOrTopic = '',
+    String status = 'published',
+    List<Map<String, dynamic>> questions = const [],
+    List<String> attachmentUrls = const [],
+    List<String> attachmentNames = const [],
     int maxMarks = 100,
     int xpReward = 50,
   }) async {
@@ -29,31 +38,59 @@ class TaskService {
       }
       
       final taskId = _firestore.collection('tasks').doc().id;
+      final now = DateTime.now();
       final task = TaskModel(
         id: taskId,
         classId: classId,
         title: title,
         description: description,
         subject: subject,
+        schoolId: schoolId,
+        type: type,
+        chapterOrTopic: chapterOrTopic,
+        status: status,
+        questions: questions,
+        attachmentUrls: attachmentUrls,
+        attachmentNames: attachmentNames,
+        publishedAt: status == 'published' ? now : null,
+        updatedAt: now,
         assignedBy: assignedBy,
         assignedByName: assignedByName,
         dueDate: dueDate,
-        createdAt: DateTime.now(),
+        createdAt: now,
         assignedTo: assignedTo,
         maxMarks: maxMarks,
         xpReward: xpReward,
       );
 
       final taskMap = task.toMap();
-      if (kDebugMode) {
-        print('Task data to save: assignedTo=${taskMap['assignedTo']}');
-      }
-      
       await _firestore.collection('tasks').doc(taskId).set(taskMap);
       
       if (kDebugMode) {
         print('Task created successfully with ID: $taskId');
       }
+
+      // Send real-time notifications to all assigned students if published
+      if (status == 'published') {
+        for (final studentId in assignedTo) {
+          try {
+            await _notificationService.sendNotification(
+              userId: studentId,
+              schoolId: schoolId.isNotEmpty ? schoolId : null,
+              title: 'New $type: $title',
+              body: '$assignedByName assigned "$title" in $subject. Due by ${dueDate.day}/${dueDate.month}/${dueDate.year}.',
+              type: 'assignment_published',
+              metadata: {
+                'taskId': taskId,
+                'subject': subject,
+                'dueDate': dueDate.toIso8601String(),
+              },
+            );
+          } catch (_) {}
+        }
+      }
+
+      return taskId;
     } catch (e) {
       if (kDebugMode) {
         print('Error creating task: $e');
@@ -62,59 +99,133 @@ class TaskService {
     }
   }
 
-  Stream<List<TaskModel>> getTasksForStudent(String studentId) {
+  Future<void> updateTask({
+    required String taskId,
+    String? title,
+    String? description,
+    String? subject,
+    String? classId,
+    DateTime? dueDate,
+    int? maxMarks,
+    int? xpReward,
+    String? type,
+    String? chapterOrTopic,
+    String? status,
+    List<Map<String, dynamic>>? questions,
+    List<String>? attachmentUrls,
+    List<String>? attachmentNames,
+    List<String>? assignedTo,
+  }) async {
+    try {
+      final updates = <String, dynamic>{
+        'updatedAt': Timestamp.now(),
+      };
+      if (title != null) updates['title'] = title;
+      if (description != null) updates['description'] = description;
+      if (subject != null) updates['subject'] = subject;
+      if (classId != null) updates['classId'] = classId;
+      if (dueDate != null) updates['dueDate'] = Timestamp.fromDate(dueDate);
+      if (maxMarks != null) updates['maxMarks'] = maxMarks;
+      if (xpReward != null) updates['xpReward'] = xpReward;
+      if (type != null) updates['type'] = type;
+      if (chapterOrTopic != null) updates['chapterOrTopic'] = chapterOrTopic;
+      if (status != null) {
+        updates['status'] = status;
+        if (status == 'published') updates['publishedAt'] = Timestamp.now();
+      }
+      if (questions != null) updates['questions'] = questions;
+      if (attachmentUrls != null) updates['attachmentUrls'] = attachmentUrls;
+      if (attachmentNames != null) updates['attachmentNames'] = attachmentNames;
+      if (assignedTo != null) updates['assignedTo'] = assignedTo;
+
+      await _firestore.collection('tasks').doc(taskId).update(updates);
+    } catch (e) {
+      throw Exception('Failed to update task: $e');
+    }
+  }
+
+  Future<void> deleteTask(String taskId) async {
+    try {
+      await _firestore.collection('tasks').doc(taskId).delete();
+    } catch (e) {
+      throw Exception('Failed to delete task: $e');
+    }
+  }
+
+  Future<void> archiveTask(String taskId) async {
+    try {
+      await _firestore.collection('tasks').doc(taskId).update({
+        'status': 'archived',
+        'updatedAt': Timestamp.now(),
+      });
+    } catch (e) {
+      throw Exception('Failed to archive task: $e');
+    }
+  }
+
+  List<TaskModel> _mapDocSnapshots(QuerySnapshot<Map<String, dynamic>> snapshot) {
+    try {
+      final tasks = snapshot.docs
+          .map((doc) {
+            try {
+              final taskData = doc.data();
+              return TaskModel.fromMap(taskData..['id'] = doc.id);
+            } catch (e) {
+              if (kDebugMode) {
+                print('Error parsing task ${doc.id}: $e');
+              }
+              return null;
+            }
+          })
+          .where((task) => task != null)
+          .cast<TaskModel>()
+          .toList();
+
+      tasks.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+      return tasks;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error processing task snapshot: $e');
+      }
+      return <TaskModel>[];
+    }
+  }
+
+  Stream<List<TaskModel>> getTasksForStudent(String studentId, {String? classId}) {
     if (studentId.isEmpty) {
-      print('Warning: getTasksForStudent called with empty studentId');
       return Stream.value(<TaskModel>[]);
     }
-    
-    return _firestore
+
+    final studentStream = _firestore
         .collection('tasks')
         .where('assignedTo', arrayContains: studentId)
         .snapshots()
-        .map((snapshot) {
-      try {
-        if (kDebugMode) {
-          print('Found ${snapshot.docs.length} tasks for student $studentId');
-        }
-        
-        final tasks = snapshot.docs
-            .map((doc) {
-              try {
-                final taskData = doc.data();
-                final assignedTo = List<String>.from(taskData['assignedTo'] ?? []);
-                if (kDebugMode) {
-                  print('Task ${doc.id}: assignedTo=$assignedTo, studentId=$studentId');
-                }
-                return TaskModel.fromMap(taskData..['id'] = doc.id);
-              } catch (e) {
-                if (kDebugMode) {
-                  print('Error parsing task ${doc.id}: $e');
-                }
-                return null;
-              }
-            })
-            .where((task) => task != null)
-            .cast<TaskModel>()
-            .toList();
-        
-        // Sort by dueDate in memory (ascending - earliest first)
-        tasks.sort((a, b) => a.dueDate.compareTo(b.dueDate));
-        
-        if (kDebugMode) {
-          print('Returning ${tasks.length} tasks for student $studentId');
-        }
-        
-        return tasks;
-      } catch (e) {
-        if (kDebugMode) {
-          print('Error processing tasks for student $studentId: $e');
-        }
-        return <TaskModel>[];
+        .map(_mapDocSnapshots);
+
+    if (classId == null || classId.isEmpty) {
+      return studentStream;
+    }
+
+    final classStream = _firestore
+        .collection('tasks')
+        .where('classId', isEqualTo: classId)
+        .snapshots()
+        .map(_mapDocSnapshots);
+
+    return Rx.combineLatest2(studentStream, classStream, (List<TaskModel> l1, List<TaskModel> l2) {
+      final map = <String, TaskModel>{};
+      for (final t in l1) {
+        map[t.id] = t;
       }
+      for (final t in l2) {
+        map[t.id] = t;
+      }
+      final combined = map.values.toList();
+      combined.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+      return combined;
     }).handleError((error) {
       if (kDebugMode) {
-        print('Error in getTasksForStudent stream: $error');
+        print('Error in getTasksForStudent combined stream: $error');
       }
       return <TaskModel>[];
     });
@@ -231,8 +342,12 @@ class TaskService {
         throw Exception('Task not found');
       }
 
+      final existingSub = (taskDoc.data()?['submissions'] as Map<String, dynamic>?)?[studentId];
+      final isFirstSubmission = existingSub != 'submitted' && existingSub != 'graded';
+
       final updates = <String, dynamic>{
         'submissions.$studentId': 'submitted',
+        'submissionDates.$studentId': Timestamp.now(),
       };
 
       // Save text submission (preferred method)
@@ -262,9 +377,28 @@ class TaskService {
         print('Task updated successfully');
       }
 
-      // Add XP for submission
-      await _gamificationService.addXP(studentId, 25);
-      await _gamificationService.checkAssignmentBadges(studentId);
+      // Add XP for first submission only (idempotent)
+      if (isFirstSubmission) {
+        await _gamificationService.addXP(studentId, 25);
+        await _gamificationService.checkAssignmentBadges(studentId);
+      }
+
+      // Notify teacher in real time
+      try {
+        final teacherId = taskDoc.data()?['assignedBy']?.toString() ?? '';
+        final taskTitle = taskDoc.data()?['title']?.toString() ?? 'Assignment';
+        if (teacherId.isNotEmpty) {
+          final studentDoc = await _firestore.collection('users').doc(studentId).get();
+          final studentName = studentDoc.data()?['name']?.toString() ?? 'A student';
+          await _notificationService.sendNotification(
+            userId: teacherId,
+            title: 'Homework Submitted',
+            body: '$studentName submitted work for "$taskTitle".',
+            type: 'assignment_submitted',
+            metadata: {'taskId': taskId, 'studentId': studentId},
+          );
+        }
+      } catch (_) {}
 
       if (kDebugMode) {
         print('Submission complete! XP added to student');
@@ -384,6 +518,23 @@ class TaskService {
       
       // Check for level up badges (using the newLevel we already calculated)
       await _gamificationService.checkLevelBadges(studentId, newLevel);
+
+      // Send real-time notification to the student
+      try {
+        await _notificationService.sendNotification(
+          userId: studentId,
+          schoolId: task.schoolId.isNotEmpty ? task.schoolId : null,
+          title: 'Assignment Graded: ${task.title}',
+          body: 'Your teacher graded your work: ${marks.toStringAsFixed(0)}/${task.maxMarks}.${feedback != null && feedback.isNotEmpty ? ' Feedback: "$feedback"' : ''}',
+          type: 'assignment_graded',
+          metadata: {
+            'taskId': taskId,
+            'marks': marks,
+            'maxMarks': task.maxMarks,
+            'feedback': feedback,
+          },
+        );
+      } catch (_) {}
     } catch (e, stackTrace) {
       if (kDebugMode) {
         print('ERROR in gradeTask: $e');

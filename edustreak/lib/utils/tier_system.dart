@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../utils/theme.dart';
 
 /// XP Tier System for Profile Picture Borders
 /// Similar to FreeFire and Google Play Games

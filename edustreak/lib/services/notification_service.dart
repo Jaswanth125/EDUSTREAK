@@ -100,7 +100,7 @@ class NotificationService {
 
   void _handleNotificationTap(RemoteMessage message) {
     // Handle notification tap when app is opened from notification
-    final data = message.data;
+    final _ = message.data;
     // Navigate based on notification type
   }
 

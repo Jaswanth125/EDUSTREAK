@@ -11,12 +11,16 @@ class StoreService {
     return _firestore
         .collection('store')
         .where('isActive', isEqualTo: true)
-        .orderBy('pointsCost', descending: false)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
+      if (snapshot.docs.isEmpty) {
+        return StoreItemModel.getDefaultItems();
+      }
+      final items = snapshot.docs
           .map((doc) => StoreItemModel.fromMap(doc.data()..['id'] = doc.id))
           .toList();
+      items.sort((a, b) => a.pointsCost.compareTo(b.pointsCost));
+      return items;
     });
   }
 
@@ -60,11 +64,18 @@ class StoreService {
 
   Future<void> purchaseItem(String userId, String itemId) async {
     try {
-      // Get item details
+      // Get item details from store collection, fallback to default items
+      StoreItemModel? item;
       final itemDoc = await _firestore.collection('store').doc(itemId).get();
-      if (!itemDoc.exists) throw Exception('Item not found');
-
-      final item = StoreItemModel.fromMap(itemDoc.data()!..['id'] = itemDoc.id);
+      if (itemDoc.exists && itemDoc.data() != null) {
+        item = StoreItemModel.fromMap(itemDoc.data()!..['id'] = itemDoc.id);
+      } else {
+        final defaults = StoreItemModel.getDefaultItems();
+        item = defaults.firstWhere(
+          (i) => i.id == itemId,
+          orElse: () => throw Exception('Store item $itemId not found'),
+        );
+      }
 
       // Get user data
       final userDoc = await _firestore.collection('users').doc(userId).get();
@@ -72,9 +83,10 @@ class StoreService {
 
       final user = UserModel.fromMap(userDoc.data()!..['id'] = userDoc.id);
 
-      // Check if user has enough points
-      if (user.xp < item.pointsCost) {
-        throw Exception('Insufficient points. Need ${item.pointsCost}, have ${user.xp}');
+      // Check spendable points (preserves lifetime xp)
+      final availablePoints = user.spendablePoints;
+      if (availablePoints < item.pointsCost) {
+        throw Exception('Insufficient points. Need ${item.pointsCost}, have $availablePoints');
       }
 
       // Check if already purchased
@@ -83,16 +95,27 @@ class StoreService {
         throw Exception('Item already purchased');
       }
 
-      // Deduct points and add item
+      // Deduct spendable points without reducing lifetime xp
       purchasedItems.add(itemId);
       final isFirstPurchase = purchasedItems.length == 1;
-      
+      final newSpendable = availablePoints - item.pointsCost;
+
       await _firestore.collection('users').doc(userId).update({
-        'xp': user.xp - item.pointsCost,
+        'spendablePoints': newSpendable,
         'purchasedItems': purchasedItems,
-        'currentAvatar': itemId, // Set as current avatar
+        'currentAvatar': itemId, // Auto-equip newly purchased avatar
       });
-      
+
+      // Audit trail in xp_transactions
+      await _gamificationService.recordXPTransaction(
+        userId: userId,
+        schoolId: user.schoolId,
+        amount: -item.pointsCost,
+        type: 'spend',
+        reason: 'Store purchase: ${item.name}',
+        balanceAfter: newSpendable,
+      );
+
       // Award badges for purchases
       if (isFirstPurchase) {
         await _gamificationService.awardBadge(userId, 'explorer');
@@ -121,8 +144,12 @@ class StoreService {
       if (!userDoc.exists) throw Exception('User not found');
 
       final purchasedItems = List<String>.from(userDoc.data()?['purchasedItems'] ?? []);
-      if (!purchasedItems.contains(itemId)) {
-        throw Exception('Item not purchased');
+      final redeemedAvatars = List<String>.from(userDoc.data()?['redeemedAvatars'] ?? []);
+      final isDefault = itemId.startsWith('avatar_') && itemId.contains('1'); // avatar_1 is free default
+
+      if (!purchasedItems.contains(itemId) && !redeemedAvatars.contains(itemId) && !isDefault) {
+        // Check if item is in purchased items or allow default avatar
+        throw Exception('Item not owned');
       }
 
       await _firestore.collection('users').doc(userId).update({

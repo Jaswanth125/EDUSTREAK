@@ -5,6 +5,7 @@ import '../../providers/user_provider.dart';
 import '../../models/challenge_model.dart';
 import '../../services/challenge_service.dart';
 import '../../utils/theme.dart';
+import 'widgets/practice_challenge_session_dialog.dart';
 
 class ChallengesScreen extends StatelessWidget {
   const ChallengesScreen({super.key});
@@ -292,7 +293,7 @@ class ChallengesScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           onTap: isCompleted
               ? null
-              : () => _completeChallenge(context, challenge.id, challengeService),
+              : () => _completeChallenge(context, challenge, challengeService),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -455,7 +456,7 @@ class ChallengesScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12),
                             onTap: () => _completeChallenge(
                               context,
-                              challenge.id,
+                              challenge,
                               challengeService,
                             ),
                             child: Padding(
@@ -464,13 +465,13 @@ class ChallengesScreen extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    Icons.check_circle,
+                                    Icons.play_arrow_rounded,
                                     color: isDaily ? Colors.orange[600] : Colors.purple[600],
                                     size: 18,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Complete',
+                                    'Start Challenge',
                                     style: TextStyle(
                                       color: isDaily ? Colors.orange[600] : Colors.purple[600],
                                       fontWeight: FontWeight.bold,
@@ -522,7 +523,7 @@ class ChallengesScreen extends StatelessWidget {
 
   Future<void> _completeChallenge(
     BuildContext context,
-    String challengeId,
+    ChallengeModel challenge,
     ChallengeService challengeService,
   ) async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
@@ -530,23 +531,18 @@ class ChallengesScreen extends StatelessWidget {
 
     if (currentUser == null) return;
 
-    try {
-      await challengeService.completeChallenge(challengeId, currentUser.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Challenge completed! XP awarded.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    }
+    await PracticeChallengeSessionDialog.start(
+      context,
+      studentId: currentUser.id,
+      studentName: currentUser.name,
+      classId: currentUser.classId ?? '',
+      schoolId: currentUser.schoolId,
+      challengeTitle: challenge.title,
+      subject: challenge.type == 'daily' ? 'Daily Challenge' : 'Weekly Challenge',
+      totalQuestions: 5,
+      xpReward: challenge.xpReward,
+      challengeId: challenge.id,
+    );
   }
 }
 

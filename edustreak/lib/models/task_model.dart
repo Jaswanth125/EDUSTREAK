@@ -28,12 +28,31 @@ class TaskModel {
   final int maxMarks; // Maximum marks for this assignment
   final int xpReward;
 
+  final String schoolId;
+  final String type; // 'Homework', 'Worksheet', 'Reading Task', 'Practice Assignment', 'Project', 'Quiz'
+  final String chapterOrTopic;
+  final String status; // 'published', 'draft', 'archived'
+  final List<Map<String, dynamic>> questions; // List of question maps with text, type, options, marks
+  final List<String> attachmentUrls;
+  final List<String> attachmentNames;
+  final DateTime? publishedAt;
+  final DateTime? updatedAt;
+
   TaskModel({
     required this.id,
     required this.classId,
     required this.title,
     required this.description,
     this.subject = '',
+    this.schoolId = '',
+    this.type = 'Homework',
+    this.chapterOrTopic = '',
+    this.status = 'published',
+    this.questions = const [],
+    this.attachmentUrls = const [],
+    this.attachmentNames = const [],
+    this.publishedAt,
+    this.updatedAt,
     required this.assignedBy,
     required this.assignedByName,
     required this.dueDate,
@@ -72,12 +91,32 @@ class TaskModel {
       return DateTime.now();
     }
 
+    DateTime? _parseNullableDate(dynamic val) {
+      try {
+        if (val is Timestamp) return val.toDate();
+        if (val is DateTime) return val;
+      } catch (_) {}
+      return null;
+    }
+
     return TaskModel(
       id: map['id'] ?? '',
       classId: map['classId'] ?? '',
       title: map['title'] ?? '',
       description: map['description'] ?? '',
       subject: map['subject'] ?? '',
+      schoolId: map['schoolId'] ?? '',
+      type: map['type'] ?? 'Homework',
+      chapterOrTopic: map['chapterOrTopic'] ?? '',
+      status: map['status'] ?? 'published',
+      questions: (map['questions'] as List<dynamic>?)
+              ?.map((q) => Map<String, dynamic>.from(q as Map))
+              .toList() ??
+          const [],
+      attachmentUrls: List<String>.from(map['attachmentUrls'] ?? []),
+      attachmentNames: List<String>.from(map['attachmentNames'] ?? []),
+      publishedAt: _parseNullableDate(map['publishedAt']),
+      updatedAt: _parseNullableDate(map['updatedAt']),
       assignedBy: map['assignedBy'] ?? '',
       assignedByName: map['assignedByName'] ?? '',
       dueDate: _parseDueDate(),
@@ -105,6 +144,15 @@ class TaskModel {
       'title': title,
       'description': description,
       'subject': subject,
+      'schoolId': schoolId,
+      'type': type,
+      'chapterOrTopic': chapterOrTopic,
+      'status': status,
+      'questions': questions,
+      'attachmentUrls': attachmentUrls,
+      'attachmentNames': attachmentNames,
+      if (publishedAt != null) 'publishedAt': Timestamp.fromDate(publishedAt!),
+      if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
       'assignedBy': assignedBy,
       'assignedByName': assignedByName,
       'dueDate': Timestamp.fromDate(dueDate),

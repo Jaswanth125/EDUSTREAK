@@ -573,8 +573,8 @@ class UserManagementScreen extends StatelessWidget {
             .get();
         if (classDoc.exists) {
           classes.add({
-            'id': _selectedClassId!,
-            'name': classDoc.data()?['name'] ?? _selectedClassId!,
+            'id': _selectedClassId,
+            'name': classDoc.data()?['name'] ?? _selectedClassId,
           });
         } else {
           // Class doesn't exist, reset to null
@@ -608,7 +608,7 @@ class UserManagementScreen extends StatelessWidget {
         if (studentDoc.exists) {
           final studentData = studentDoc.data();
           students.add({
-            'id': _selectedParentId!,
+            'id': _selectedParentId,
             'name': studentData?['name'] ?? 'Unknown',
           });
         } else {

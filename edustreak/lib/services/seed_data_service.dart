@@ -1,25 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
-import '../models/task_model.dart';
-import '../models/challenge_model.dart';
-import '../models/store_item_model.dart';
-import '../models/badge_model.dart';
 import 'auth_service.dart';
 import 'task_service.dart';
 import 'challenge_service.dart';
 import 'store_service.dart';
-import 'attendance_service.dart';
 import 'realtime_chat_service.dart';
 
 class SeedDataService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final AuthService _authService = AuthService();
   final TaskService _taskService = TaskService();
   final ChallengeService _challengeService = ChallengeService();
   final StoreService _storeService = StoreService();
-  final AttendanceService _attendanceService = AttendanceService();
   final RealtimeChatService _chatService = RealtimeChatService();
 
   Future<void> seedAllData() async {
@@ -169,7 +161,7 @@ class SeedDataService {
         role: 'parent',
         childId: student1.id,
       );
-      final parent2 = await _createUser(
+      await _createUser(
         email: 'parent2@edustreak.com',
         password: 'parent123',
         name: 'Mary Wilson',
@@ -191,7 +183,7 @@ class SeedDataService {
         xpReward: 75,
       );
       
-      final task2 = await _createTaskWithId(
+      await _createTaskWithId(
         classId: class10A,
         title: 'Science Project - Solar System',
         description: 'Create a model of the solar system with all planets. Take photos as proof.',
@@ -215,7 +207,7 @@ class SeedDataService {
         xpReward: 90,
       );
 
-      final task4 = await _createTaskWithId(
+      await _createTaskWithId(
         classId: class10A,
         title: 'Physics Lab Report - Motion',
         description: 'Complete the lab report for the motion experiment. Include graphs and calculations.',
@@ -240,7 +232,7 @@ class SeedDataService {
         xpReward: 80,
       );
 
-      final task6 = await _createTaskWithId(
+      await _createTaskWithId(
         classId: class10B,
         title: 'Chemistry Worksheet - Periodic Table',
         description: 'Complete the periodic table worksheet. Answer all questions.',
@@ -253,7 +245,7 @@ class SeedDataService {
       );
 
       // Exciting Creative Tasks
-      final task7 = await _createTaskWithId(
+      await _createTaskWithId(
         classId: class10A,
         title: '🎨 Creative Writing Challenge - Time Travel Story',
         description: 'Write an exciting 800-word story about traveling back in time to meet a historical figure. Be creative and include vivid descriptions! Submit your story as a document or image.',
@@ -265,7 +257,7 @@ class SeedDataService {
         xpReward: 120,
       );
 
-      final task8 = await _createTaskWithId(
+      await _createTaskWithId(
         classId: class10B,
         title: '🔬 Science Experiment - Build a Volcano',
         description: 'Create a working volcano model using household items. Record a video (2-3 minutes) showing the eruption and explain the chemical reaction. Submit video link or upload video file.',
@@ -277,7 +269,7 @@ class SeedDataService {
         xpReward: 150,
       );
 
-      final task9 = await _createTaskWithId(
+      await _createTaskWithId(
         classId: class10A,
         title: '📊 Data Analysis Project - Climate Change Research',
         description: 'Research climate change data for the last 50 years. Create charts/graphs showing temperature changes. Present your findings in a 5-slide presentation. Upload as PDF or images.',
@@ -289,7 +281,7 @@ class SeedDataService {
         xpReward: 130,
       );
 
-      final task10 = await _createTaskWithId(
+      await _createTaskWithId(
         classId: class10B,
         title: '🎭 Drama Performance - Historical Skit',
         description: 'Create a 3-minute skit about a historical event. You can work in groups of 2-3. Record and upload the video. Include costumes and props for bonus points!',
@@ -301,7 +293,7 @@ class SeedDataService {
         xpReward: 110,
       );
 
-      final task11 = await _createTaskWithId(
+      await _createTaskWithId(
         classId: class10A,
         title: '🌍 Geography Adventure - Virtual World Tour',
         description: 'Choose 5 countries you want to visit. For each country, create a travel brochure with: flag, capital, famous landmarks, and interesting facts. Submit as a PDF or image collage.',
@@ -313,7 +305,7 @@ class SeedDataService {
         xpReward: 100,
       );
 
-      final task12 = await _createTaskWithId(
+      await _createTaskWithId(
         classId: class10B,
         title: '💻 Coding Challenge - Simple Calculator App',
         description: 'Create a simple calculator using any programming language (Python, JavaScript, etc.). Submit your code and a screenshot/demo of it working. Bonus XP for creativity!',
@@ -449,6 +441,19 @@ class SeedDataService {
         updates['classIds'] = classIds;
       }
 
+      if (role == 'student') {
+        updates['schoolId'] = 'sch_ap_001';
+        updates['schoolCode'] = 'AP-KRI-042';
+        updates['rollNumber'] = email == 'student1@edustreak.com' ? '101' : (email == 'student2@edustreak.com' ? '102' : '103');
+        updates['grade'] = '10';
+        updates['section'] = 'A';
+        updates['academicYear'] = '2024-2025';
+      }
+
+      if (role == 'parent' && childId != null) {
+        updates['childIds'] = [childId];
+      }
+
       await _firestore.collection('users').doc(userModel.id).update(updates);
       return UserModel.fromMap({
         ...userModel.toMap(),
@@ -457,30 +462,6 @@ class SeedDataService {
     }
 
     throw Exception('Failed to create user: $email');
-  }
-
-  Future<void> _createTask({
-    required String classId,
-    required String title,
-    required String description,
-    required String assignedBy,
-    required String assignedByName,
-    required List<String> assignedTo,
-    required DateTime dueDate,
-    int maxMarks = 100,
-    int xpReward = 50,
-  }) async {
-    await _taskService.createTask(
-      classId: classId,
-      title: title,
-      description: description,
-      assignedBy: assignedBy,
-      assignedByName: assignedByName,
-      dueDate: dueDate,
-      assignedTo: assignedTo,
-      maxMarks: maxMarks,
-      xpReward: xpReward,
-    );
   }
 
   Future<String> _createTaskWithId({

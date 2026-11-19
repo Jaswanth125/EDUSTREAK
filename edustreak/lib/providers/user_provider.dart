@@ -12,8 +12,8 @@ import '../services/auth_service.dart';
 /// every widget that reads [currentUser] is rebuilt automatically — no
 /// re-login required.
 class UserProvider with ChangeNotifier {
-  final AuthService _authService = AuthService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final AuthService _authService = AuthService();
+  late final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   UserModel? _currentUser;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSubscription;
@@ -59,6 +59,9 @@ class UserProvider with ChangeNotifier {
     return _currentUser;
   }
 
+  /// Alias for loadUser to refresh or fetch user profile data.
+  Future<UserModel?> fetchUser(String uid) => loadUser(uid);
+
   /// Writes updated user data to Firestore.
   /// The stream subscription will automatically pick up the change and
   /// call [notifyListeners] — no manual state mutation needed.
@@ -72,6 +75,12 @@ class UserProvider with ChangeNotifier {
     _userSubscription?.cancel();
     _userSubscription = null;
     _currentUser = null;
+    notifyListeners();
+  }
+
+  /// Sets the current user in memory directly (useful for tests and fast sync).
+  void setUser(UserModel? user) {
+    _currentUser = user;
     notifyListeners();
   }
 

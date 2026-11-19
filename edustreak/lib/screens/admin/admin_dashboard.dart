@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
-import '../../services/badge_service.dart';
 import '../../utils/seed_data_runner.dart';
 import '../../utils/initialize_support_data.dart';
 import '../../utils/theme.dart';

@@ -25,22 +25,25 @@ class GroqClient:
         Args:
             model (str): Optional model name. Defaults to GROQ_MODEL env var or 'openai/gpt-oss-120b'.
         """
-        self.api_key = os.getenv("GROQ_API_KEY")
-        if not self.api_key:
-            raise ValueError("GROQ_API_KEY environment variable not set.")
-        
+        self.api_key = os.getenv("GROQ_API_KEY", "")
         self.model = model or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        print(f"Groq client initialized with model: {self.model}")
+        if not self.api_key or self.api_key == "your_groq_api_key_here":
+            print("Notice: GROQ_API_KEY not configured. Set GROQ_API_KEY in .env to enable live AI responses.")
+        else:
+            print(f"Groq client initialized with model: {self.model}")
 
     def _call_groq_api(self, payload, timeout=60):
         """
         Calls the Groq API with automatic fallback if the requested model is unavailable.
         """
+        if not self.api_key or self.api_key == "your_groq_api_key_here":
+            raise GroqAPIException("GROQ_API_KEY is not configured. Please set your GROQ_API_KEY in Study_Assistant/files/.env to enable live AI responses.")
+
         candidate_models = [
             self.model,
             os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
@@ -139,6 +142,12 @@ class GroqClient:
             raise
         except Exception as e:
             raise GroqAPIException(f"Error in chat: {str(e)}")
+    
+    def generate_content(self, prompt: str) -> str:
+        """
+        Convenience wrapper for generating content from a single prompt.
+        """
+        return self.chat(prompt)
     
     def generate_summary(self, topic, context):
         """

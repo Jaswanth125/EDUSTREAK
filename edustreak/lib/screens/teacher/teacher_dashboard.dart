@@ -479,17 +479,41 @@ class _TeacherDashboardState extends State<TeacherDashboard>
   Widget _buildRecentActivity(user) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('taskSubmissions')
-          .orderBy('submittedAt', descending: true)
-          .limit(5)
+          .collection('tasks')
+          .where('assignedBy', isEqualTo: user.id)
+          .limit(10)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) {
+        final taskDocs = snapshot.data?.docs ?? [];
+        final List<Map<String, dynamic>> recentSubmissions = [];
+
+        for (final doc in taskDocs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final taskTitle = data['title'] ?? 'Assignment';
+          final submissions = (data['submissions'] as Map<String, dynamic>?) ?? {};
+          final marks = (data['marks'] as Map<String, dynamic>?) ?? {};
+
+          for (final entry in submissions.entries) {
+            final studentId = entry.key;
+            final isSubmitted = entry.value == 'submitted';
+            if (isSubmitted) {
+              final isGraded = marks.containsKey(studentId);
+              final shortId = studentId.length > 4 ? studentId.substring(0, 4).toUpperCase() : studentId;
+              recentSubmissions.add({
+                'studentName': 'Student #$shortId',
+                'taskTitle': taskTitle,
+                'isGraded': isGraded,
+                'submittedAt': data['createdAt'] ?? Timestamp.now(),
+              });
+            }
+          }
+        }
+
+        if (recentSubmissions.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -503,7 +527,7 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                   Icon(Icons.inbox, color: AppTheme.textTertiary, size: 40),
                   const SizedBox(height: 8),
                   Text(
-                    'No recent activity',
+                    'No recent student submissions',
                     style: TextStyle(color: AppTheme.textSecondary),
                   ),
                 ],
@@ -513,11 +537,12 @@ class _TeacherDashboardState extends State<TeacherDashboard>
         }
 
         return Column(
-          children: docs.asMap().entries.map((entry) {
-            final data = entry.value.data() as Map<String, dynamic>;
-            final studentName = data['studentName'] ?? 'Student';
-            final taskTitle = data['taskTitle'] ?? 'Task';
-            final isGraded = data['isGraded'] ?? false;
+          children: recentSubmissions.take(5).toList().asMap().entries.map((indexed) {
+            final index = indexed.key;
+            final item = indexed.value;
+            final studentName = item['studentName'] as String;
+            final taskTitle = item['taskTitle'] as String;
+            final isGraded = item['isGraded'] as bool;
 
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -590,7 +615,7 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                   ),
                 ],
               ),
-            ).animate(delay: (entry.key * 80).ms).fadeIn(duration: 400.ms);
+            ).animate(delay: (index * 80).ms).fadeIn(duration: 400.ms);
           }).toList(),
         );
       },
@@ -616,22 +641,41 @@ class _TeacherDashboardState extends State<TeacherDashboard>
         }
       }
 
-      // Count tasks
-      final tasks = await FirebaseFirestore.instance
+      // Count tasks and pending evaluations
+      final tasksSnapshot = await FirebaseFirestore.instance
           .collection('tasks')
-          .where('teacherId', isEqualTo: user.id)
-          .count()
+          .where('assignedBy', isEqualTo: user.id)
           .get();
-      taskCount = tasks.count ?? 0;
 
-      // Count pending grading
-      final pending = await FirebaseFirestore.instance
-          .collection('taskSubmissions')
-          .where('isSubmitted', isEqualTo: true)
-          .where('isGraded', isEqualTo: false)
-          .count()
-          .get();
-      pendingCount = pending.count ?? 0;
+      taskCount = tasksSnapshot.docs.length;
+      if (taskCount == 0) {
+        final altTasks = await FirebaseFirestore.instance
+            .collection('tasks')
+            .where('teacherId', isEqualTo: user.id)
+            .get();
+        taskCount = altTasks.docs.length;
+        for (final doc in altTasks.docs) {
+          final data = doc.data();
+          final submissions = (data['submissions'] as Map<String, dynamic>?) ?? {};
+          final marks = (data['marks'] as Map<String, dynamic>?) ?? {};
+          for (final sub in submissions.entries) {
+            if (sub.value == 'submitted' && !marks.containsKey(sub.key)) {
+              pendingCount++;
+            }
+          }
+        }
+      } else {
+        for (final doc in tasksSnapshot.docs) {
+          final data = doc.data();
+          final submissions = (data['submissions'] as Map<String, dynamic>?) ?? {};
+          final marks = (data['marks'] as Map<String, dynamic>?) ?? {};
+          for (final sub in submissions.entries) {
+            if (sub.value == 'submitted' && !marks.containsKey(sub.key)) {
+              pendingCount++;
+            }
+          }
+        }
+      }
 
       return {
         'students': studentCount,

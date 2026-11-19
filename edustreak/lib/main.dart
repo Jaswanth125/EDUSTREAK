@@ -7,16 +7,15 @@ import 'package:edustreak/services/notification_service.dart';
 import 'package:edustreak/services/fcm_service.dart';
 import 'package:edustreak/providers/user_provider.dart';
 import 'package:edustreak/screens/auth/login_screen.dart';
-import 'package:edustreak/screens/student/student_dashboard.dart';
-import 'package:edustreak/screens/teacher/teacher_dashboard.dart';
-import 'package:edustreak/screens/parent/parent_dashboard.dart';
-import 'package:edustreak/screens/admin/admin_dashboard.dart';
+import 'package:edustreak/screens/portal_router.dart';
 import 'package:edustreak/utils/theme.dart';
 import 'package:edustreak/providers/theme_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:edustreak/models/user_model.dart';
+import 'package:edustreak/services/school_service.dart';
+import 'package:edustreak/services/curriculum_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -42,6 +41,14 @@ void main() async {
       // Safe to ignore
     }
   }
+
+  // Provision default state institutions & curriculum templates if empty
+  SchoolService().seedInitialSchoolsIfEmpty().catchError((e) {
+    debugPrint('Note: School seeding background error: $e');
+  });
+  CurriculumService().seedCurriculumTemplatesIfEmpty().catchError((e) {
+    debugPrint('Note: Curriculum template seeding background error: $e');
+  });
 
   await NotificationService().init();
   
@@ -144,18 +151,7 @@ class AuthWrapper extends StatelessWidget {
   }
 
   Widget _getDashboard(String role) {
-    switch (role.toLowerCase()) {
-      case 'student':
-        return const StudentDashboard();
-      case 'teacher':
-        return const TeacherDashboard();
-      case 'parent':
-        return const ParentDashboard();
-      case 'admin':
-        return const AdminDashboard();
-      default:
-        return const StudentDashboard();
-    }
+    return EduStreakPortalRouter(initialRole: role);
   }
 }
 

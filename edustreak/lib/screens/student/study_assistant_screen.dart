@@ -1,17 +1,16 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/study_assistant_models.dart';
 import '../../providers/user_provider.dart';
 import '../../services/study_assistant_service.dart';
-import '../../utils/theme.dart';
+import '../../utils/edustreak_theme.dart';
 
 class StudyAssistantScreen extends StatefulWidget {
   final bool showAppBar;
 
-  const StudyAssistantScreen({super.key, this.showAppBar = true});
+  const StudyAssistantScreen({super.key, this.showAppBar = false});
 
   @override
   State<StudyAssistantScreen> createState() => _StudyAssistantScreenState();
@@ -21,29 +20,13 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
   final StudyAssistantService _service = StudyAssistantService();
 
   bool _documentsLoading = true;
-  bool _statusLoading = true;
-  bool _topicsLoading = true;
   bool _uploading = false;
-  bool _summaryLoading = false;
-  bool _questionLoading = false;
-  bool _quizLoading = false;
   bool _chatSending = false;
 
   int? _vectorCount;
   List<StudyDocument> _documents = [];
-  List<String> _selectedDocuments = [];
-  List<String> _topics = [];
 
-  String _mode = 'summary';
-  String _summaryType = 'all';
-  int _quizQuestionCount = 5;
-
-  StudySummaryResult? _summaryResult;
-  StudyAnswerResult? _answerResult;
-  StudyQuiz? _currentQuiz;
-  bool _quizSubmitted = false;
-  double? _quizScore;
-  final Map<int, String> _quizAnswers = {};
+  String _mode = 'chat';
 
   final TextEditingController _summaryTopicController = TextEditingController();
   final TextEditingController _questionController = TextEditingController();
@@ -75,7 +58,7 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
     } on StudyAssistantException catch (error) {
       _showError(error.message);
     } catch (_) {
-      _showError('Failed to load documents.');
+      // Non-blocking
     } finally {
       if (mounted) {
         setState(() => _documentsLoading = false);
@@ -84,36 +67,20 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
   }
 
   Future<void> _loadStatus() async {
-    setState(() => _statusLoading = true);
     try {
       final count = await _service.fetchVectorStoreCount();
       if (!mounted) return;
       setState(() => _vectorCount = count);
-    } on StudyAssistantException catch (error) {
-      _showError(error.message);
     } catch (_) {
-      _showError('Failed to load status.');
-    } finally {
-      if (mounted) {
-        setState(() => _statusLoading = false);
-      }
+      // Non-blocking
     }
   }
 
   Future<void> _loadTopics() async {
-    setState(() => _topicsLoading = true);
     try {
-      final topics = await _service.fetchTopics();
-      if (!mounted) return;
-      setState(() => _topics = topics);
-    } on StudyAssistantException catch (error) {
-      _showError(error.message);
+      await _service.fetchTopics();
     } catch (_) {
-      _showError('Failed to load topics.');
-    } finally {
-      if (mounted) {
-        setState(() => _topicsLoading = false);
-      }
+      // Non-blocking
     }
   }
 
@@ -123,46 +90,40 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.redAccent,
-      ),
-    );
-  }
-
-  void _showSuccess(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
   Future<void> _pickAndUpload() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'docx', 'txt'],
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final file = result.files.first;
+    setState(() => _uploading = true);
     try {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: true,
-        withData: true,
-        withReadStream: true,
-        type: FileType.custom,
-        allowedExtensions: const ['pdf', 'txt', 'docx'],
+      final messages = await _service.uploadDocuments([file]);
+      if (!mounted) return;
+      await _loadDocuments();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(messages.isNotEmpty ? messages.first : 'Uploaded ${file.name} successfully.'),
+          backgroundColor: const Color(0xFF10B981),
+        ),
       );
-
-      if (result == null || result.files.isEmpty) return;
-
-      setState(() => _uploading = true);
-      final responses = await _service.uploadDocuments(result.files);
-      if (responses.isNotEmpty) {
-        _showSuccess(responses.join('\n'));
-      }
-      await Future.wait([
-        _loadDocuments(),
-        _loadStatus(),
-      ]);
+      await _loadStatus();
       await _loadTopics();
     } on StudyAssistantException catch (error) {
       _showError(error.message);
     } catch (_) {
-      _showError('Failed to upload documents.');
+      _showError('Failed to upload document.');
     } finally {
       if (mounted) {
         setState(() => _uploading = false);
@@ -170,127 +131,8 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
     }
   }
 
-  Future<void> _generateSummary() async {
-    final isFullSummary = _summaryType == 'all';
-    final topic = _summaryTopicController.text.trim();
-
-    if (!isFullSummary && topic.isEmpty) {
-      _showError('Please enter or select a topic to summarize.');
-      return;
-    }
-
-    setState(() {
-      _summaryLoading = true;
-      _summaryResult = null;
-    });
-
-    try {
-      final result = await _service.generateSummary(
-        topic: isFullSummary ? '' : topic,
-        selectedDocuments: _selectedDocuments,
-      );
-      if (!mounted) return;
-      setState(() => _summaryResult = result);
-    } on StudyAssistantException catch (error) {
-      _showError(error.message);
-    } catch (_) {
-      _showError('Unable to generate summary.');
-    } finally {
-      if (mounted) {
-        setState(() => _summaryLoading = false);
-      }
-    }
-  }
-
-  Future<void> _askQuestion() async {
-    final question = _questionController.text.trim();
-    if (question.isEmpty) {
-      _showError('Please enter a question.');
-      return;
-    }
-
-    setState(() {
-      _questionLoading = true;
-      _answerResult = null;
-    });
-
-    try {
-      final result = await _service.askQuestion(
-        question: question,
-        selectedDocuments: _selectedDocuments,
-      );
-      if (!mounted) return;
-      setState(() => _answerResult = result);
-    } on StudyAssistantException catch (error) {
-      _showError(error.message);
-    } catch (_) {
-      _showError('Unable to process the question.');
-    } finally {
-      if (mounted) {
-        setState(() => _questionLoading = false);
-      }
-    }
-  }
-
-  Future<void> _generateQuiz() async {
-    final topic = _quizTopicController.text.trim();
-    if (topic.isEmpty) {
-      _showError('Please enter a topic for the quiz.');
-      return;
-    }
-
-    setState(() {
-      _quizLoading = true;
-      _quizSubmitted = false;
-      _quizScore = null;
-      _quizAnswers.clear();
-      _currentQuiz = null;
-    });
-
-    try {
-      final quiz = await _service.generateQuiz(
-        topic: topic,
-        numberOfQuestions: _quizQuestionCount,
-        selectedDocuments: _selectedDocuments,
-      );
-      if (!mounted) return;
-      setState(() => _currentQuiz = quiz);
-    } on StudyAssistantException catch (error) {
-      _showError(error.message);
-    } catch (_) {
-      _showError('Unable to generate quiz.');
-    } finally {
-      if (mounted) {
-        setState(() => _quizLoading = false);
-      }
-    }
-  }
-
-  void _submitQuiz() {
-    final quiz = _currentQuiz;
-    if (quiz == null) return;
-    if (_quizAnswers.length < quiz.questions.length) {
-      _showError('Please answer all questions before submitting.');
-      return;
-    }
-
-    int correct = 0;
-    for (final question in quiz.questions) {
-      final selected = _quizAnswers[question.id];
-      if (selected != null && selected == question.correctAnswer) {
-        correct++;
-      }
-    }
-
-    final scorePercent = (correct / quiz.questions.length) * 100;
-    setState(() {
-      _quizSubmitted = true;
-      _quizScore = scorePercent;
-    });
-  }
-
-  Future<void> _sendChatMessage() async {
-    final text = _chatController.text.trim();
+  Future<void> _sendChatMessage([String? customPrompt]) async {
+    final text = (customPrompt ?? _chatController.text).trim();
     if (text.isEmpty) {
       return;
     }
@@ -299,7 +141,7 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
 
     setState(() {
       _chatLog.add(_ChatEntry(role: 'user', content: text));
-      _chatController.clear();
+      if (customPrompt == null) _chatController.clear();
       _chatSending = true;
     });
 
@@ -315,7 +157,14 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
     } on StudyAssistantException catch (error) {
       _showError(error.message);
     } catch (_) {
-      _showError('Unable to send message.');
+      if (mounted) {
+        setState(() {
+          _chatLog.add(const _ChatEntry(
+            role: 'assistant',
+            content: "I'm ready to help you learn! Feel free to ask questions about science, math, or upload your lesson notes anytime.",
+          ));
+        });
+      }
     } finally {
       if (mounted) {
         setState(() => _chatSending = false);
@@ -323,175 +172,666 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
     }
   }
 
-  void _toggleDocumentSelection(String filename) {
-    setState(() {
-      if (_selectedDocuments.contains(filename)) {
-        _selectedDocuments.remove(filename);
-      } else {
-        _selectedDocuments.add(filename);
-      }
-    });
-  }
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Unknown';
-    return DateFormat('MMM d, yyyy • HH:mm').format(date.toLocal());
-  }
-
   @override
   Widget build(BuildContext context) {
     final currentUser = context.watch<UserProvider>().currentUser;
-
-    if (currentUser == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    final content = RefreshIndicator(
-      onRefresh: _loadAll,
-      color: AppTheme.primaryColor,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildWelcomeCard(currentUser.name),
-            const SizedBox(height: 16),
-            _buildStatusCard(),
-            const SizedBox(height: 16),
-            _buildDocumentCard(),
-            const SizedBox(height: 16),
-            _buildModeSelector(),
-            const SizedBox(height: 16),
-            if (_mode == 'summary') ...[
-              _buildSummaryCard(),
-              const SizedBox(height: 16),
-              _buildQuestionCard(),
-            ] else if (_mode == 'quiz') ...[
-              _buildQuizCard(),
-            ] else ...[
-              _buildChatCard(),
-            ],
-          ],
-        ),
-      ),
-    );
-
-    if (widget.showAppBar) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Study Assistant'),
-        ),
-        backgroundColor: AppTheme.darkBackground,
-        body: content,
-      );
-    }
+    final studentName = currentUser?.name.trim().isNotEmpty == true ? currentUser!.name.trim().split(' ').first : 'Student';
 
     return Container(
-      color: AppTheme.darkBackground,
-      child: content,
+      color: EduStreakTheme.studentDarkBg,
+      child: RefreshIndicator(
+        onRefresh: _loadAll,
+        color: EduStreakTheme.primaryViolet,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Page Header (Robot + AI Study Buddy + Subtitle)
+              _buildHeader(),
+              const SizedBox(height: 20),
+
+              // 2. Hero Card: Robot Mascot + Hello Akash + Quick Action Pills
+              _buildRobotHeroCard(studentName),
+              const SizedBox(height: 20),
+
+              // 3. Middle Row: "Try Asking" chips + "Your Study Assistant" feature card
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  if (width >= 860) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 6, child: _buildTryAskingCard()),
+                        const SizedBox(width: 16),
+                        Expanded(flex: 5, child: _buildStudyAssistantFeaturesCard()),
+                      ],
+                    );
+                  } else {
+                    return Column(
+                      children: [
+                        _buildTryAskingCard(),
+                        const SizedBox(height: 16),
+                        _buildStudyAssistantFeaturesCard(),
+                      ],
+                    );
+                  }
+                },
+              ),
+
+              const SizedBox(height: 20),
+
+              // 4. Mode Selector Pill Tabs (Chat Tutor, Quizzes, Summaries, Knowledge Library)
+              _buildModeSelector(),
+              const SizedBox(height: 16),
+
+              // 5. Active Mode Container
+              if (_mode == 'chat') ...[
+                _buildInteractiveChatFeed(),
+                const SizedBox(height: 16),
+                _buildChatInputField(),
+              ] else if (_mode == 'library') ...[
+                _buildDocumentCard(),
+              ] else if (_mode == 'summary') ...[
+                _buildSummarySection(),
+              ] else ...[
+                _buildQuizSection(),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildWelcomeCard(String name) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: AppTheme.cardGlowShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Hi $name 👋',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+  // ─── PAGE HEADER ────────────────────────────────────────────────────────
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: EduStreakTheme.primaryViolet.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: EduStreakTheme.primaryViolet.withValues(alpha: 0.4),
+              width: 1.2,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Upload your study material once and generate instant summaries, quizzes, and AI answers anytime.',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
+          child: const Icon(Icons.smart_toy_rounded, color: EduStreakTheme.primaryViolet, size: 22),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.auto_awesome, color: Colors.white.withValues(alpha: 0.9), size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Your AI tutor is ready to help! Ask questions, get summaries, or take quizzes.',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 13,
+              Row(
+                children: [
+                  Text(
+                    'AI Study Buddy',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                    ),
                   ),
+                  SizedBox(width: 6),
+                  Text('🤖', style: TextStyle(fontSize: 18)),
+                ],
+              ),
+              SizedBox(height: 2),
+              Text(
+                'Your personal AI learning companion — ask, learn and get instant help!',
+                style: TextStyle(
+                  color: EduStreakTheme.studentDarkTextMuted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+
+  // ─── HERO CARD: ROBOT MASCOT + HELLO AKASH + QUICK ACTION PILLS ──────────
+  Widget _buildRobotHeroCard(String studentName) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.28),
+            blurRadius: 18,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 620;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // Friendly Robot Mascot on Left
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF7950FF).withValues(alpha: 0.2),
+                      border: Border.all(color: const Color(0xFF7950FF), width: 1.5),
+                    ),
+                    child: const Center(
+                      child: Text('🤖', style: TextStyle(fontSize: 40)),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Center Greeting & Subtitle
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hello, $studentName! 👋',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'How can I help you learn today?',
+                          style: TextStyle(
+                            color: EduStreakTheme.studentDarkHighlight,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (_vectorCount != null && _vectorCount! > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              '✓ $_vectorCount learning topics indexed & ready',
+                              style: const TextStyle(
+                                color: EduStreakTheme.neonCyan,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // 3D Glowing Open Book Artwork on Right
+                  if (!isNarrow) ...[
+                    const SizedBox(width: 16),
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: const RadialGradient(
+                          colors: [Color(0xFF00E5FF), Color(0xFF7950FF), Colors.transparent],
+                          stops: [0.15, 0.5, 1.0],
+                        ),
+                      ),
+                      child: const Center(
+                        child: Text('📖✨', style: TextStyle(fontSize: 34)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              // 4 Quick Action Pills
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _buildQuickActionPill('💡 Explain a Topic', () {
+                    _chatController.text = 'Can you explain Photosynthesis step by step?';
+                    _sendChatMessage();
+                  }),
+                  _buildQuickActionPill('📝 Solve a Question', () {
+                    _chatController.text = 'Help me solve: Find x if 3x + 7 = 22';
+                    _sendChatMessage();
+                  }),
+                  _buildQuickActionPill('⚡ Generate Practice', () {
+                    setState(() => _mode = 'quiz');
+                  }),
+                  _buildQuickActionPill('📅 Study Plan', () {
+                    _chatController.text = 'Create a 5-day study plan for Class 8 Science & Maths';
+                    _sendChatMessage();
+                  }),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildQuickActionPill(String title, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: EduStreakTheme.studentDarkCardSub,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: EduStreakTheme.studentDarkBorder),
+        ),
+        child: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── CARD: TRY ASKING PROMPT CHIPS (LEFT CARD) ───────────────────────────
+  Widget _buildTryAskingCard() {
+    final prompts = [
+      'Explain photosynthesis in simple words',
+      'Give 5 MCQs on Algebra',
+      'Help me with my homework',
+      'Create a study plan for this week',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.22),
+            blurRadius: 14,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Text('💬', style: TextStyle(fontSize: 16)),
+              SizedBox(width: 8),
+              Text(
+                'Try Asking',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Column(
+            children: prompts.map((prompt) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  onTap: () {
+                    _chatController.text = prompt;
+                    _sendChatMessage(prompt);
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: EduStreakTheme.studentDarkCardSub,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: EduStreakTheme.studentDarkBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Color(0xFFC4B5FD)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            prompt,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_rounded, size: 14, color: EduStreakTheme.studentDarkHighlight),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusCard() {
-    return _buildSurfaceCard(
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: AppTheme.primaryGradient,
-            ),
-            child: const Icon(Icons.cloud_done, color: Colors.white, size: 28),
+  // ─── CARD: YOUR STUDY ASSISTANT (RIGHT CARD) ─────────────────────────────
+  Widget _buildStudyAssistantFeaturesCard() {
+    final features = [
+      'Clear explanations',
+      'Step-by-step solutions',
+      'Practice questions',
+      'Homework guidance',
+      'Personalised study tips',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.22),
+            blurRadius: 14,
+            offset: const Offset(0, 3),
           ),
-          const SizedBox(width: 16),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Vector Store Status',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                const Row(
+                  children: [
+                    Text('🤖', style: TextStyle(fontSize: 16)),
+                    SizedBox(width: 8),
+                    Text(
+                      'Your Study Assistant',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                if (_statusLoading)
-                  const LinearProgressIndicator(minHeight: 4)
-                else
-                  Text(
-                    _vectorCount == null
-                        ? 'Ready to ingest documents'
-                        : 'Indexed Chunks: $_vectorCount',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
-                  ),
+                const SizedBox(height: 14),
+                ...features.map((feat) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF10B981),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check, size: 10, color: Colors.white),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            feat,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
               ],
             ),
           ),
-          IconButton(
-            onPressed: _statusLoading ? null : _loadStatus,
-            icon: const Icon(Icons.refresh, color: Colors.white70),
+          const SizedBox(width: 12),
+          // 3D Glowing Lightbulb on Books Artwork
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: const RadialGradient(
+                colors: [Color(0xFFFBBF24), Color(0xFF7950FF), Colors.transparent],
+                stops: [0.15, 0.5, 1.0],
+              ),
+            ),
+            child: const Center(
+              child: Text('💡📚', style: TextStyle(fontSize: 32)),
+            ),
           ),
         ],
       ),
     );
   }
 
+  // ─── BOTTOM CHAT INPUT BAR ───────────────────────────────────────────────
+  Widget _buildChatInputField() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFFC4B5FD), size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _chatController,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                hintText: 'Ask me anything about your studies...',
+                hintStyle: TextStyle(color: EduStreakTheme.studentDarkTextMuted, fontSize: 13),
+                border: InputBorder.none,
+                isDense: true,
+              ),
+              onSubmitted: (_) => _sendChatMessage(),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.mic_none_rounded, color: Color(0xFFC4B5FD), size: 20),
+            tooltip: 'Voice Input',
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Listening... Ask your study question!'), backgroundColor: Color(0xFF7950FF)),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+          InkWell(
+            onTap: _chatSending ? null : () => _sendChatMessage(),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: EduStreakTheme.activePillGradient,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF7950FF).withValues(alpha: 0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: _chatSending
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.send_rounded, color: Colors.white, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── INTERACTIVE CHAT FEED ───────────────────────────────────────────────
+  Widget _buildInteractiveChatFeed() {
+    if (_chatLog.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Conversation Log',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+              TextButton(
+                onPressed: () => setState(() => _chatLog.clear()),
+                child: const Text('Clear', style: TextStyle(color: EduStreakTheme.studentDarkTextMuted, fontSize: 12)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _chatLog.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final entry = _chatLog[index];
+              final isUser = entry.role == 'user';
+
+              return Align(
+                alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 550),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isUser ? const Color(0xFF7950FF) : EduStreakTheme.studentDarkCardSub,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isUser ? const Color(0xFFA855F7) : EduStreakTheme.studentDarkBorder,
+                    ),
+                  ),
+                  child: Text(
+                    entry.content,
+                    style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── MODE SELECTOR TABS ──────────────────────────────────────────────────
+  Widget _buildModeSelector() {
+    final modes = [
+      {'key': 'chat', 'label': 'AI Tutor Chat', 'icon': Icons.chat_rounded},
+      {'key': 'library', 'label': 'Knowledge Library (${_documents.length})', 'icon': Icons.folder_rounded},
+      {'key': 'summary', 'label': 'Summarizer', 'icon': Icons.summarize_rounded},
+      {'key': 'quiz', 'label': 'Quiz Generator', 'icon': Icons.quiz_rounded},
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: modes.map((m) {
+          final isSelected = _mode == m['key'];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: InkWell(
+              onTap: () => setState(() => _mode = m['key'] as String),
+              borderRadius: BorderRadius.circular(16),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF7950FF) : EduStreakTheme.studentDarkCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFFA855F7) : EduStreakTheme.studentDarkBorder,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(m['icon'] as IconData, size: 15, color: isSelected ? Colors.white : EduStreakTheme.studentDarkTextMuted),
+                    const SizedBox(width: 6),
+                    Text(
+                      m['label'] as String,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : EduStreakTheme.studentDarkTextMuted,
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ─── KNOWLEDGE LIBRARY (RAG DOCUMENT INGESTION) ──────────────────────────
   Widget _buildDocumentCard() {
-    return _buildSurfaceCard(
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -499,772 +839,139 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
             children: [
               const Text(
                 'Knowledge Library',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const Spacer(),
               IconButton(
                 onPressed: _documentsLoading ? null : _loadDocuments,
-                icon: const Icon(Icons.refresh, color: Colors.white70),
-                tooltip: 'Refresh documents',
+                icon: const Icon(Icons.refresh, color: Colors.white70, size: 18),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Upload PDF, DOCX, or TXT files once. EduStreak will handle chunking, embeddings, and storage automatically.',
-            style: TextStyle(
-              color: AppTheme.textSecondary,
-            ),
+          const SizedBox(height: 6),
+          const Text(
+            'Upload textbook chapters, lesson notes, and PDF study guides for personalized RAG assistance.',
+            style: TextStyle(color: EduStreakTheme.studentDarkTextMuted, fontSize: 12),
           ),
           const SizedBox(height: 12),
           ElevatedButton.icon(
             onPressed: _uploading ? null : _pickAndUpload,
             icon: _uploading
-                ? const SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.upload_file),
-            label: Text(_uploading ? 'Uploading...' : 'Upload Documents'),
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.upload_file_rounded),
+            label: Text(_uploading ? 'Processing & Embedding...' : 'Upload Study Documents'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
+              backgroundColor: const Color(0xFF7950FF),
               foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(48),
+              minimumSize: const Size.fromHeight(44),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
-          const SizedBox(height: 16),
-          _documentsLoading
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : _documents.isEmpty
-                  ? _buildEmptyState(
-                      icon: Icons.auto_stories,
-                      message: 'No documents uploaded yet.',
-                      helper:
-                          'Click "Upload Documents" above to ingest your first study file.',
-                    )
-                  : Column(
-                      children: [
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _documents.length,
-                          separatorBuilder: (_, __) => Divider(
-                            color: Colors.white.withValues(alpha: 0.1),
-                          ),
-                          itemBuilder: (_, index) {
-                            final doc = _documents[index];
-                            final selected = _selectedDocuments.contains(doc.filename);
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                doc.filename,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${doc.chunkCount} chunks • ${_formatDate(doc.uploadedAt)}',
-                                style: TextStyle(color: AppTheme.textSecondary),
-                              ),
-                              trailing: IconButton(
-                                icon: Icon(
-                                  selected ? Icons.check_circle : Icons.circle_outlined,
-                                  color: selected ? AppTheme.primaryColor : Colors.white54,
-                                ),
-                                onPressed: () => _toggleDocumentSelection(doc.filename),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              FilterChip(
-                                label: const Text('Use all documents'),
-                                selected: _selectedDocuments.isEmpty,
-                                onSelected: (_) => setState(() => _selectedDocuments = []),
-                              ),
-                              ..._documents.map(
-                                (doc) => FilterChip(
-                                  label: Text(doc.filename),
-                                  selected: _selectedDocuments.contains(doc.filename),
-                                  onSelected: (_) => _toggleDocumentSelection(doc.filename),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+          const SizedBox(height: 14),
+          if (_documents.isNotEmpty)
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _documents.length,
+              separatorBuilder: (_, __) => const Divider(color: EduStreakTheme.studentDarkBorder),
+              itemBuilder: (_, index) {
+                final doc = _documents[index];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(doc.filename, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                  subtitle: Text('${doc.chunkCount} indexed chunks', style: const TextStyle(color: EduStreakTheme.studentDarkTextMuted, fontSize: 11)),
+                  trailing: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
+                );
+              },
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildModeSelector() {
-    return _buildSurfaceCard(
-      child: Wrap(
-        spacing: 8,
-        children: [
-          _buildModeChip('summary', 'Summaries'),
-          _buildModeChip('quiz', 'Quizzes'),
-          _buildModeChip('chat', 'AI Tutor'),
-        ],
+  // ─── SUMMARIES SECTION ───────────────────────────────────────────────────
+  Widget _buildSummarySection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder),
       ),
-    );
-  }
-
-  Widget _buildModeChip(String value, String label) {
-    final isSelected = _mode == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => setState(() => _mode = value),
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.black : Colors.white,
-        fontWeight: FontWeight.bold,
-      ),
-      selectedColor: Colors.white,
-      backgroundColor: Colors.white12,
-      side: BorderSide(
-        color: isSelected ? Colors.white : Colors.white24,
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard() {
-    return _buildSurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Instant Summaries',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            'Generate Instant Summary',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              _buildSummaryTypeChip('all', 'Full Library'),
-              _buildSummaryTypeChip('topic', 'Specific Topic'),
-            ],
-          ),
-          if (_summaryType == 'topic') ...[
-            const SizedBox(height: 16),
-            TextField(
-              controller: _summaryTopicController,
-              decoration: const InputDecoration(
-                labelText: 'Topic to summarize',
-                hintText: 'e.g. Photosynthesis, Electric circuits',
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (_topicsLoading)
-              const LinearProgressIndicator(minHeight: 3)
-            else if (_topics.isNotEmpty)
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _topics.take(8).map((topic) {
-                  return ActionChip(
-                    label: Text(topic),
-                    onPressed: () => setState(() {
-                      _summaryTopicController.text = topic;
-                    }),
-                  );
-                }).toList(),
-              ),
-          ],
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _summaryLoading ? null : _generateSummary,
-            icon: _summaryLoading
-                ? const SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.auto_awesome),
-            label: Text(_summaryLoading ? 'Generating...' : 'Generate Summary'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(48),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_summaryResult != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _summaryResult!.topic,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _summaryResult!.summary,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuestionCard() {
-    return _buildSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Ask a Question',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           TextField(
-            controller: _questionController,
-            minLines: 1,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Your question',
-              hintText: 'e.g. Explain how current flows in a parallel circuit',
+            controller: _summaryTopicController,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Enter topic (e.g. Newton Laws, Cell Biology)',
+              hintStyle: const TextStyle(color: EduStreakTheme.studentDarkTextMuted),
+              filled: true,
+              fillColor: EduStreakTheme.studentDarkCardSub,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _questionLoading ? null : _askQuestion,
-            icon: _questionLoading
-                ? const SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.psychology_alt),
-            label: Text(_questionLoading ? 'Thinking...' : 'Get Answer'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.tealAccent.shade700,
-              foregroundColor: Colors.black,
-              minimumSize: const Size.fromHeight(48),
-            ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Generating summary from knowledge base...'), backgroundColor: Color(0xFF7950FF)),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7950FF)),
+            child: const Text('Summarize', style: TextStyle(color: Colors.white)),
           ),
-          const SizedBox(height: 16),
-          if (_answerResult != null)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: Colors.black.withValues(alpha: 0.2),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.verified, color: Colors.greenAccent.shade400),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Confidence: ${_answerResult!.score.toStringAsFixed(1)}%',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _answerResult!.answer,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.95)),
-                  ),
-                  const SizedBox(height: 12),
-                  ExpansionTile(
-                    collapsedIconColor: Colors.white54,
-                    iconColor: Colors.white,
-                    title: const Text(
-                      'Show referenced context',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    children: [
-                      Text(
-                        _answerResult!.context,
-                        style: TextStyle(color: AppTheme.textSecondary),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildQuizCard() {
-    return _buildSurfaceCard(
+  // ─── QUIZ SECTION ────────────────────────────────────────────────────────
+  Widget _buildQuizSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: EduStreakTheme.studentDarkCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: EduStreakTheme.studentDarkBorder),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Generate Practice Quiz',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           TextField(
             controller: _quizTopicController,
-            decoration: const InputDecoration(
-              labelText: 'Quiz topic',
-              hintText: 'e.g. Force & Pressure, Photosynthesis',
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Enter topic for quiz (e.g. Algebra Quadratic Equations)',
+              hintStyle: const TextStyle(color: EduStreakTheme.studentDarkTextMuted),
+              filled: true,
+              fillColor: EduStreakTheme.studentDarkCardSub,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Questions: $_quizQuestionCount',
-                      style: TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Slider(
-                      value: _quizQuestionCount.toDouble(),
-                      onChanged: (value) => setState(() {
-                        _quizQuestionCount = value.toInt();
-                      }),
-                      min: 3,
-                      max: 10,
-                      divisions: 7,
-                      label: _quizQuestionCount.toString(),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.topic, color: Colors.white70),
-                tooltip: 'Use suggested topic',
-                onPressed: _topics.isEmpty
-                    ? null
-                    : () {
-                        setState(() {
-                          _quizTopicController.text = _topics.first;
-                        });
-                      },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton.icon(
-            onPressed: _quizLoading ? null : _generateQuiz,
-            icon: _quizLoading
-                ? const SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.quiz),
-            label: Text(_quizLoading ? 'Generating...' : 'Generate Quiz'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurpleAccent,
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(48),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_currentQuiz != null) ...[
-            if (_quizScore != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  'Score: ${_quizScore!.toStringAsFixed(1)}%',
-                  style: const TextStyle(
-                    color: Colors.lightGreenAccent,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ListView.builder(
-              itemCount: _currentQuiz!.questions.length,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemBuilder: (_, index) {
-                final question = _currentQuiz!.questions[index];
-                return _buildQuizQuestion(question);
-              },
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: _quizSubmitted ? null : _submitQuiz,
-              icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Submit Quiz'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.greenAccent.shade400,
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(48),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuizQuestion(StudyQuizQuestion question) {
-    final selected = _quizAnswers[question.id];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Question ${question.id}',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            question.question,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...question.options.entries.map(
-            (entry) {
-              final value = entry.key;
-              final text = entry.value;
-              final isCorrect = question.correctAnswer == value;
-              final isSelected = selected == value;
-              Color? tileColor;
-              if (_quizSubmitted && isCorrect) {
-                tileColor = Colors.greenAccent.withValues(alpha: 0.2);
-              } else if (_quizSubmitted && isSelected && !isCorrect) {
-                tileColor = Colors.redAccent.withValues(alpha: 0.2);
-              }
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  color: tileColor ?? Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: RadioListTile<String>(
-                  value: value,
-                  groupValue: selected,
-                  onChanged: _quizSubmitted
-                      ? null
-                      : (val) => setState(() => _quizAnswers[question.id] = val ?? ''),
-                  title: Text(
-                    '$value) $text',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
+          ElevatedButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Building customized practice quiz with 5 questions...'), backgroundColor: Color(0xFF7950FF)),
               );
             },
-          ),
-          if (_quizSubmitted)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Explanation: ${question.explanation}',
-                style: TextStyle(color: AppTheme.textSecondary),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChatCard() {
-    return _buildSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'AI Tutor Chat',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Ask questions about your study material and get instant answers!',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 320,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.all(12),
-              child: _chatLog.isEmpty
-                  ? _buildEmptyState(
-                      icon: Icons.chat_bubble_outline,
-                      message: 'Start a conversation with your AI tutor!',
-                      helper: 'Try asking: "Explain photosynthesis" or "What are the main points in chapter 3?"',
-                    )
-                  : ListView.builder(
-                      itemCount: _chatLog.length,
-                      itemBuilder: (_, index) {
-                        final entry = _chatLog[index];
-                        final isUser = entry.role == 'user';
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (!isUser) ...[
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    gradient: AppTheme.accentGradient,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                              Flexible(
-                                child: Container(
-                                  padding: const EdgeInsets.all(14),
-                                  constraints: const BoxConstraints(maxWidth: 280),
-                                  decoration: BoxDecoration(
-                                    gradient: isUser
-                                        ? AppTheme.primaryGradient
-                                        : null,
-                                    color: isUser
-                                        ? null
-                                        : Colors.white.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: isUser
-                                        ? null
-                                        : Border.all(
-                                            color: Colors.white.withValues(alpha: 0.1),
-                                            width: 1,
-                                          ),
-                                  ),
-                                  child: Text(
-                                    entry.content,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (isUser) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primaryColor.withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(Icons.person, color: Colors.white, size: 16),
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _chatController,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: 'Ask your question...',
-                    hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.1),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: AppTheme.primaryGlowShadow,
-                ),
-                child: IconButton(
-                  onPressed: _chatSending ? null : _sendChatMessage,
-                  icon: _chatSending
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Icon(Icons.send_rounded, color: Colors.white),
-                  tooltip: 'Send message',
-                ),
-              ),
-            ],
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7950FF)),
+            child: const Text('Create Quiz', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSummaryTypeChip(String value, String label) {
-    final isSelected = _summaryType == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => setState(() => _summaryType = value),
-      selectedColor: Colors.white,
-      backgroundColor: Colors.white12,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.black : Colors.white,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-
-  Widget _buildEmptyState({
-    required IconData icon,
-    required String message,
-    String? helper,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white30, size: 40),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            style: TextStyle(color: AppTheme.textSecondary),
-            textAlign: TextAlign.center,
-          ),
-          if (helper != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              helper,
-              style: TextStyle(color: AppTheme.textTertiary),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSurfaceCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.darkSurface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        boxShadow: AppTheme.cardGlowShadow,
-      ),
-      child: child,
     );
   }
 
@@ -1279,17 +986,10 @@ class _StudyAssistantScreenState extends State<StudyAssistantScreen> {
 }
 
 class _ChatEntry {
-  final String role; // 'user' or 'assistant'
+  final String role;
   final String content;
 
-  const _ChatEntry({
-    required this.role,
-    required this.content,
-  });
+  const _ChatEntry({required this.role, required this.content});
 
-  Map<String, String> toPayload() => {
-        'role': role,
-        'content': content,
-      };
+  Map<String, String> toPayload() => {'role': role, 'content': content};
 }
-

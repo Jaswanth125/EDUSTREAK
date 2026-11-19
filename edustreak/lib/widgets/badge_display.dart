@@ -290,10 +290,12 @@ class BadgeDisplay extends StatelessWidget {
     final icon = badge['iconUrl'] as String? ?? badge['icon'] as String? ?? '🏆';
     final description = badge['description'] as String? ?? '';
     
-    return Container(
-      width: 120,
-      margin: const EdgeInsets.only(right: 12),
+    return Tooltip(
+      message: description.isNotEmpty ? description : name,
       child: Container(
+        width: 120,
+        margin: const EdgeInsets.only(right: 12),
+        child: Container(
         decoration: BoxDecoration(
           gradient: earned 
               ? AppTheme.darkCardGradient 
@@ -375,7 +377,8 @@ class BadgeDisplay extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildAvatarCard(BuildContext context, Map<String, dynamic> avatar, bool earned) {

@@ -155,7 +155,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: Colors.grey.shade100,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 4,
                     offset: const Offset(0, -2),
                   ),
@@ -200,7 +200,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   const SizedBox(width: 8),
                   Material(
                     color: _hasText
-                        ? Theme.of(context).primaryColor.withOpacity(0.9)
+                        ? Theme.of(context).primaryColor.withValues(alpha: 0.9)
                         : Colors.grey.shade400,
                     elevation: _hasText ? 2 : 0,
                     shape: const CircleBorder(),

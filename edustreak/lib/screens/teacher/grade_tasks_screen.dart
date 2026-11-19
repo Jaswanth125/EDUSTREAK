@@ -5,10 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/user_provider.dart';
 import '../../models/task_model.dart';
 import '../../services/task_service.dart';
+import '../shared/skill_matrix_screen.dart';
 import 'package:intl/intl.dart';
 
 class GradeTasksScreen extends StatefulWidget {
-  const GradeTasksScreen({super.key});
+  final bool showAppBar;
+  const GradeTasksScreen({super.key, this.showAppBar = false});
 
   @override
   State<GradeTasksScreen> createState() => _GradeTasksScreenState();
@@ -21,29 +23,13 @@ class _GradeTasksScreenState extends State<GradeTasksScreen> {
     final teacher = userProvider.currentUser;
 
     if (teacher == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Grade Assignments'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              // Force rebuild to refresh the stream
-              setState(() {});
-            },
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
-      body: StreamBuilder<List<TaskModel>>(
-        stream: TaskService().getTasksForTeacher(teacher.id),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+    final content = StreamBuilder<List<TaskModel>>(
+      stream: TaskService().getTasksForTeacher(teacher.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
@@ -218,8 +204,23 @@ class _GradeTasksScreenState extends State<GradeTasksScreen> {
             },
           );
         },
-      ),
-    );
+      );
+
+    if (widget.showAppBar) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Grade Assignments'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () => setState(() {}),
+            ),
+          ],
+        ),
+        body: content,
+      );
+    }
+    return content;
   }
 }
 
@@ -618,6 +619,26 @@ class _TaskGradingDetailScreenState extends State<TaskGradingDetailScreen> {
                                   style: ElevatedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(vertical: 16),
                                   ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.hub_rounded, size: 16),
+                                  label: const Text('View Skill Graph & Competencies', style: TextStyle(fontSize: 12)),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => SkillMatrixScreen(
+                                          studentId: studentId,
+                                          studentName: studentName,
+                                          isTeacher: true,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ] else if (submissionStatus == 'pending') ...[

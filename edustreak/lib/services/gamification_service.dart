@@ -5,10 +5,12 @@ import '../models/badge_model.dart';
 import 'notification_service.dart';
 import 'attendance_summary_service.dart';
 
+import '../models/xp_transaction_model.dart';
+
 class GamificationService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final NotificationService _notificationService = NotificationService();
-  final AttendanceSummaryService _attendanceSummaryService = AttendanceSummaryService();
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  NotificationService get _notificationService => NotificationService();
+  AttendanceSummaryService get _attendanceSummaryService => AttendanceSummaryService();
 
   // XP required for each level (exponential growth)
   int getXPForLevel(int level) {
@@ -23,7 +25,12 @@ class GamificationService {
     return level - 1;
   }
 
-  Future<void> addXP(String userId, int amount) async {
+  Future<void> addXP(
+    String userId,
+    int amount, {
+    String reason = 'Activity completion',
+    String type = 'earn',
+  }) async {
     try {
       if (amount <= 0) {
         debugPrint('Warning: Attempted to add ${amount} XP (must be positive)');
@@ -38,16 +45,31 @@ class GamificationService {
 
       final userData = userDoc.data()!;
       final currentXP = (userData['xp'] as num?)?.toInt() ?? 0;
+      final rawSpendable = (userData['spendablePoints'] as num?)?.toInt();
+      // Initialize spendable to currentXP if never set
+      final currentSpendable = rawSpendable ?? currentXP;
       final newXP = currentXP + amount;
+      final newSpendable = currentSpendable + amount;
       final currentLevel = getLevelFromXP(currentXP);
       final newLevel = getLevelFromXP(newXP);
 
-      debugPrint('Adding XP: User=$userId, Amount=$amount, Current=$currentXP, New=$newXP, Level=$currentLevel->$newLevel');
+      debugPrint('Adding XP: User=$userId, Amount=$amount, Current=$currentXP, New=$newXP, Spendable=$currentSpendable->$newSpendable, Level=$currentLevel->$newLevel');
 
       await _firestore.collection('users').doc(userId).update({
         'xp': newXP,
+        'spendablePoints': newSpendable,
         'level': newLevel,
       });
+
+      // Audit trail in xp_transactions
+      await recordXPTransaction(
+        userId: userId,
+        schoolId: userData['schoolId'] as String?,
+        amount: amount,
+        type: type,
+        reason: reason,
+        balanceAfter: newSpendable,
+      );
 
       debugPrint('✅ XP updated successfully for user $userId');
 
@@ -62,6 +84,46 @@ class GamificationService {
       debugPrint('❌ Error adding XP to user $userId: $e');
       throw Exception('Failed to add XP: $e');
     }
+  }
+
+  /// Record an XP transaction into the audit collection
+  Future<void> recordXPTransaction({
+    required String userId,
+    String? schoolId,
+    required int amount,
+    required String type,
+    required String reason,
+    required int balanceAfter,
+  }) async {
+    try {
+      final docRef = _firestore.collection('xp_transactions').doc();
+      final tx = XpTransactionModel(
+        id: docRef.id,
+        userId: userId,
+        schoolId: schoolId,
+        amount: amount,
+        type: type,
+        reason: reason,
+        balanceAfter: balanceAfter,
+        timestamp: DateTime.now(),
+      );
+      await docRef.set(tx.toMap());
+    } catch (e) {
+      debugPrint('Error logging XP transaction: $e');
+    }
+  }
+
+  /// Stream of user XP transactions for history inspection
+  Stream<List<XpTransactionModel>> getXPTransactions(String userId) {
+    return _firestore
+        .collection('xp_transactions')
+        .where('userId', isEqualTo: userId)
+        .orderBy('timestamp', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => XpTransactionModel.fromMap(doc.data(), id: doc.id))
+            .toList());
   }
 
   Future<void> updateStreak(String userId, bool increment) async {
@@ -84,7 +146,6 @@ class GamificationService {
   }
 
   Future<void> checkStreakBadges(String userId, int streak) async {
-    final badges = BadgeModel.getDefaultBadges();
     final userDoc = await _firestore.collection('users').doc(userId).get();
     final userBadges = List<String>.from(userDoc.data()?['badges'] ?? []);
 
@@ -137,7 +198,6 @@ class GamificationService {
 
       // Check if badge was already awarded for this month
       final monthKey = '${month.year}-${month.month.toString().padLeft(2, '0')}';
-      final badgeAwardedKey = 'attendance_badge_$monthKey';
       
       // Check if we've already checked this month (to avoid duplicate awards)
       final lastAttendanceCheck = userDoc.data()?['lastAttendanceCheck'] as String?;

@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../chat/realtime_chat_list_screen.dart';
 
 class ChatListScreen extends StatelessWidget {
-  const ChatListScreen({super.key});
+  final bool showAppBar;
+  const ChatListScreen({super.key, this.showAppBar = false});
 
   @override
   Widget build(BuildContext context) {
-    return const RealtimeChatListScreen();
+    return RealtimeChatListScreen(showAppBar: showAppBar);
   }
 }
 

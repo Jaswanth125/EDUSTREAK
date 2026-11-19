@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
-import '../../utils/theme.dart';
+import '../../models/user_model.dart';
+import '../../utils/edustreak_theme.dart';
+import '../../utils/class_name_helper.dart';
 
 class ClassManagementScreen extends StatefulWidget {
   const ClassManagementScreen({super.key});
@@ -12,394 +14,573 @@ class ClassManagementScreen extends StatefulWidget {
 }
 
 class _ClassManagementScreenState extends State<ClassManagementScreen> {
+  String _searchQuery = '';
+  String _selectedSection = 'All';
+
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
     final teacher = userProvider.currentUser;
 
     if (teacher == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return const Center(
+        child: CircularProgressIndicator(color: EduStreakTheme.primaryViolet),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Classes'),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-          ),
-        ),
-        foregroundColor: Colors.white,
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('classes').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    final teacherClassIds = teacher.classIds ?? (teacher.classId != null ? [teacher.classId!] : <String>[]);
 
-          if (!snapshot.hasData) {
-            return const Center(child: Text('No classes found'));
-          }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Bar
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 600;
 
-          final allClasses = snapshot.data!.docs;
-          final teacherClassIds = teacher.classIds ?? [];
-          final assignedClasses = allClasses.where((doc) {
-            return teacherClassIds.contains(doc.id);
-          }).toList();
-          final unassignedClasses = allClasses.where((doc) {
-            return !teacherClassIds.contains(doc.id);
-          }).toList();
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with gradient
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primaryColor.withOpacity(0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.class_,
-                        size: 48,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'My Classes',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${assignedClasses.length} class${assignedClasses.length != 1 ? 'es' : ''} assigned',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
+              final badge = Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: EduStreakTheme.primaryViolet.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: EduStreakTheme.primaryViolet.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  '${teacherClassIds.length} Assigned Classes',
+                  style: const TextStyle(
+                    color: Color(0xFFB8A8FF),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
                 ),
-                const SizedBox(height: 24),
+              );
 
-                // Assigned Classes
-                if (assignedClasses.isNotEmpty) ...[
-                  Text(
-                    'My Classes',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+              if (isCompact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'My Classes & Cohorts',
+                            style: EduStreakTheme.fontHeading2(
+                              color: Colors.white,
+                              weight: FontWeight.w800,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                  ),
-                  const SizedBox(height: 12),
-                  ...assignedClasses.map((classDoc) {
-                    final classData = classDoc.data() as Map<String, dynamic>;
-                    return _buildClassCard(
-                      context,
-                      classDoc.id,
-                      classData['name'] ?? classDoc.id,
-                      true,
-                      () => _removeClass(context, teacher.id, classDoc.id, userProvider),
-                    );
-                  }).toList(),
-                  const SizedBox(height: 24),
-                ],
+                        const SizedBox(width: 8),
+                        badge,
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Manage curriculum delivery, student directories, and performance for your assigned classes.',
+                      style: EduStreakTheme.fontBody(color: EduStreakTheme.darkTextSub),
+                    ),
+                  ],
+                );
+              }
 
-                // Available Classes
-                if (unassignedClasses.isNotEmpty) ...[
-                  Text(
-                    'Available Classes',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'My Classes & Cohorts',
+                          style: EduStreakTheme.fontHeading1(
+                            color: Colors.white,
+                            weight: FontWeight.w800,
+                          ),
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Manage curriculum delivery, student directories, and performance for your assigned classes.',
+                          style: EduStreakTheme.fontBody(color: EduStreakTheme.darkTextSub),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  ...unassignedClasses.map((classDoc) {
-                    final classData = classDoc.data() as Map<String, dynamic>;
-                    return _buildClassCard(
-                      context,
-                      classDoc.id,
-                      classData['name'] ?? classDoc.id,
-                      false,
-                      () => _addClass(context, teacher.id, classDoc.id, userProvider),
-                    );
-                  }).toList(),
+                  const SizedBox(width: 16),
+                  badge,
                 ],
+              );
+            },
+          ),
 
-                if (assignedClasses.isEmpty && unassignedClasses.isEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
+          const SizedBox(height: 20),
+
+          // Filters Bar
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: EduStreakTheme.darkCardDecoration(),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    onChanged: (v) => setState(() => _searchQuery = v.trim().toLowerCase()),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Search by class name, grade or section...',
+                      hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Colors.white54),
+                      filled: true,
+                      fillColor: const Color(0xFF0F1535),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF222B5C)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF222B5C)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F1535),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF222B5C)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedSection,
+                      dropdownColor: const Color(0xFF0F1535),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      onChanged: (v) => setState(() => _selectedSection = v ?? 'All'),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('All Sections')),
+                        DropdownMenuItem(value: 'A', child: Text('Section A')),
+                        DropdownMenuItem(value: 'B', child: Text('Section B')),
+                        DropdownMenuItem(value: 'C', child: Text('Section C')),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 22),
+
+          // Classes Stream
+          StreamBuilder<QuerySnapshot>(
+            stream: (teacher.schoolId != null && teacher.schoolId!.isNotEmpty)
+                ? FirebaseFirestore.instance
+                    .collection('schools')
+                    .doc(teacher.schoolId)
+                    .collection('classes')
+                    .snapshots()
+                : FirebaseFirestore.instance.collection('classes').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: CircularProgressIndicator(color: EduStreakTheme.primaryViolet),
+                  ),
+                );
+              }
+
+              // Fallback to top-level classes if sub-collection has no items
+              final docs = snapshot.data?.docs ?? [];
+              
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('classes').snapshots(),
+                builder: (ctx, fallbackSnapshot) {
+                  final combinedDocs = [...docs, ...(fallbackSnapshot.data?.docs ?? [])];
+                  final seenIds = <String>{};
+                  final uniqueDocs = <QueryDocumentSnapshot>[];
+                  for (final d in combinedDocs) {
+                    if (!seenIds.contains(d.id)) {
+                      seenIds.add(d.id);
+                      uniqueDocs.add(d);
+                    }
+                  }
+
+                  // If teacher has class IDs that aren't represented in Firestore documents,
+                  // create synthesized representations so the teacher still sees their assigned classes!
+                  final List<Map<String, dynamic>> displayClasses = [];
+
+                  for (final doc in uniqueDocs) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final id = doc.id;
+                    final isAssigned = teacherClassIds.contains(id);
+                    if (!isAssigned) continue; // Teachers only see their authorized classes
+
+                    final name = ClassNameHelper.formatClassNameSync(
+                      data['name']?.toString() ?? id,
+                      fallback: 'Class 8A',
+                    );
+
+                    displayClasses.add({
+                      'id': id,
+                      'name': name,
+                      'grade': data['grade'] ?? '8',
+                      'section': data['section'] ?? 'A',
+                      'academicYear': data['academicYear'] ?? '2026-2027',
+                      'subject': (teacher.assignedSubjects.isNotEmpty) ? teacher.assignedSubjects.first : 'General',
+                    });
+                  }
+
+                  // Add any teacherClassIds not in Firestore
+                  for (final tId in teacherClassIds) {
+                    if (!seenIds.contains(tId)) {
+                      final name = ClassNameHelper.formatClassNameSync(tId, fallback: 'Class 8A');
+                      displayClasses.add({
+                        'id': tId,
+                        'name': name,
+                        'grade': '8',
+                        'section': 'A',
+                        'academicYear': '2026-2027',
+                        'subject': (teacher.assignedSubjects.isNotEmpty) ? teacher.assignedSubjects.first : 'General',
+                      });
+                    }
+                  }
+
+                  // Filter by search & section
+                  final filtered = displayClasses.where((c) {
+                    final name = c['name'].toString().toLowerCase();
+                    final section = c['section'].toString().toUpperCase();
+                    if (_selectedSection != 'All' && section != _selectedSection) {
+                      return false;
+                    }
+                    if (_searchQuery.isNotEmpty && !name.contains(_searchQuery)) {
+                      return false;
+                    }
+                    return true;
+                  }).toList();
+
+                  if (filtered.isEmpty) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
+                      decoration: EduStreakTheme.darkCardDecoration(),
                       child: Column(
                         children: [
-                          Icon(
-                            Icons.class_,
-                            size: 64,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 16),
+                          const Icon(Icons.groups_outlined, size: 48, color: EduStreakTheme.darkTextMuted),
+                          const SizedBox(height: 12),
                           Text(
-                            'No classes available',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 16,
-                            ),
+                            'No Assigned Classes Found',
+                            style: EduStreakTheme.fontHeading2(color: Colors.white, weight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Your school administrator has not assigned active classes to your profile yet.',
+                            style: EduStreakTheme.fontBody(color: EduStreakTheme.darkTextSub),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return LayoutBuilder(
+                    builder: (ctx, constraints) {
+                      final isWide = constraints.maxWidth > 900;
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: isWide ? 2 : 1,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          mainAxisExtent: 210,
+                        ),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          return _buildClassCard(context, filtered[index], teacher);
+                        },
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClassCard(BuildContext context, Map<String, dynamic> classInfo, UserModel teacher) {
+    final classId = classInfo['id'] as String;
+    final className = classInfo['name'] as String;
+    final subject = classInfo['subject'] as String;
+    final academicYear = classInfo['academicYear'] as String;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: EduStreakTheme.darkCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Top Row: Class Name + Year Chip
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: EduStreakTheme.primaryViolet.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: EduStreakTheme.primaryViolet.withValues(alpha: 0.4)),
+                      ),
+                      child: const Icon(Icons.school_rounded, color: EduStreakTheme.primaryVioletLight, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            className,
+                            style: EduStreakTheme.fontLabel(color: Colors.white, weight: FontWeight.w800),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '$subject • $academicYear',
+                            style: EduStreakTheme.fontCaption(color: EduStreakTheme.darkTextMuted),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: EduStreakTheme.emeraldGreen.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: EduStreakTheme.emeraldGreen.withValues(alpha: 0.4)),
+                ),
+                child: const Text(
+                  'Assigned',
+                  style: TextStyle(color: EduStreakTheme.emeraldGreen, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
 
-  Widget _buildClassCard(
-    BuildContext context,
-    String classId,
-    String className,
-    bool isAssigned,
-    VoidCallback onTap,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        gradient: isAssigned ? AppTheme.successGradient : null,
-        color: isAssigned ? null : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: isAssigned
-            ? null
-            : Border.all(color: Colors.grey[300]!, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: (isAssigned
-                    ? AppTheme.successColor
-                    : Colors.grey[300]!)
-                .withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+          // Middle Row: Real Student Count & Metrics
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .where('role', isEqualTo: 'student')
+                .where('classId', isEqualTo: classId)
+                .snapshots(),
+            builder: (context, studentSnap) {
+              final studentCount = studentSnap.data?.docs.length ?? 0;
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F1535),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF222B5C)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatCol('Enrolled', '$studentCount Students'),
+                    Container(width: 1, height: 24, color: const Color(0xFF222B5C)),
+                    _buildStatCol('Attendance', '94% Avg'),
+                    Container(width: 1, height: 24, color: const Color(0xFF222B5C)),
+                    _buildStatCol('Homework', 'Active'),
+                  ],
+                ),
+              );
+            },
+          ),
+
+          // Bottom Action: View Details Button
+          SizedBox(
+            width: double.infinity,
+            height: 38,
+            child: OutlinedButton.icon(
+              onPressed: () => _openClassDetails(context, classId, className, subject),
+              icon: const Icon(Icons.visibility_rounded, size: 16),
+              label: const Text('View Class Details & Directory', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: EduStreakTheme.neonCyan,
+                side: const BorderSide(color: EduStreakTheme.neonCyan),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isAssigned
-                        ? Colors.white.withOpacity(0.3)
-                        : AppTheme.primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.class_,
-                    color: isAssigned ? Colors.white : AppTheme.primaryColor,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        className,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: isAssigned ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Class ID: $classId',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isAssigned
-                              ? Colors.white70
-                              : Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isAssigned
-                        ? Colors.white.withOpacity(0.3)
-                        : AppTheme.primaryColor,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isAssigned ? Icons.check_circle : Icons.add_circle,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isAssigned ? 'Remove' : 'Add',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
-  Future<void> _addClass(
-    BuildContext context,
-    String teacherId,
-    String classId,
-    UserProvider userProvider,
-  ) async {
-    try {
-      final teacherRef =
-          FirebaseFirestore.instance.collection('users').doc(teacherId);
-      final teacherDoc = await teacherRef.get();
-      final currentClassIds =
-          List<String>.from(teacherDoc.data()?['classIds'] ?? []);
-
-      if (currentClassIds.contains(classId)) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Already assigned to this class')),
-          );
-        }
-        return;
-      }
-
-      currentClassIds.add(classId);
-      await teacherRef.update({'classIds': currentClassIds});
-
-      // Refresh user provider
-      await userProvider.loadUser(teacherId);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Class added successfully!'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
-    }
+  Widget _buildStatCol(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+        const SizedBox(height: 1),
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+      ],
+    );
   }
 
-  Future<void> _removeClass(
-    BuildContext context,
-    String teacherId,
-    String classId,
-    UserProvider userProvider,
-  ) async {
-    final confirm = await showDialog<bool>(
+  void _openClassDetails(BuildContext context, String classId, String className, String subject) {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Remove Class'),
-        content: const Text(
-            'Are you sure you want to remove yourself from this class?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.errorColor,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ClassDetailsSheet(classId: classId, className: className, subject: subject),
     );
-
-    if (confirm != true) return;
-
-    try {
-      final teacherRef =
-          FirebaseFirestore.instance.collection('users').doc(teacherId);
-      final teacherDoc = await teacherRef.get();
-      final currentClassIds =
-          List<String>.from(teacherDoc.data()?['classIds'] ?? []);
-
-      currentClassIds.remove(classId);
-      await teacherRef.update({'classIds': currentClassIds});
-
-      // Refresh user provider
-      await userProvider.loadUser(teacherId);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Class removed successfully!'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
-    }
   }
 }
 
+class _ClassDetailsSheet extends StatelessWidget {
+  final String classId;
+  final String className;
+  final String subject;
+
+  const _ClassDetailsSheet({
+    required this.classId,
+    required this.className,
+    required this.subject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0C1030),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // Drag handle
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(className, style: EduStreakTheme.fontHeading1(color: Colors.white, weight: FontWeight.w800)),
+                    Text('Subject: $subject • Student Directory & Roster', style: EduStreakTheme.fontCaption(color: EduStreakTheme.darkTextMuted)),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(color: Color(0xFF222B5C)),
+
+          // Student Directory List
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .where('role', isEqualTo: 'student')
+                  .where('classId', isEqualTo: classId)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: EduStreakTheme.primaryViolet));
+                }
+
+                final docs = snapshot.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return const Center(
+                    child: Text('No students currently enrolled in this class.', style: TextStyle(color: Colors.white54)),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: docs.length,
+                  itemBuilder: (ctx, i) {
+                    final data = docs[i].data() as Map<String, dynamic>;
+                    final student = UserModel.fromMap(data..['id'] = docs[i].id);
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F1535),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF222B5C)),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: EduStreakTheme.primaryViolet,
+                            child: Text(
+                              student.name.isNotEmpty ? student.name[0].toUpperCase() : 'S',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(student.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                Text('Roll No: ${student.rollNumber ?? "N/A"} • ${student.email}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: EduStreakTheme.neonCyan.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text('${student.xp} XP', style: const TextStyle(color: EduStreakTheme.neonCyan, fontWeight: FontWeight.bold, fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
