@@ -254,6 +254,246 @@ class CurriculumService {
     }
   }
 
+  // ─── STANDARD CURRICULUM SYLLABI & CHAPTER MAPPING ────────────────────────
+  static final Map<String, Map<String, List<String>>> standardCurriculum = {
+    'Mathematics': {
+      'Rational Numbers': [
+        'Properties of Rational Numbers',
+        'Representation on Number Line',
+        'Operations on Rational Numbers',
+      ],
+      'Linear Equations in One Variable': [
+        'Solving Linear Expressions',
+        'Word Problems & Applications',
+        'Equations Reducible to Linear Form',
+      ],
+      'Understanding Quadrilaterals': [
+        'Polygons & Angle Sum Property',
+        'Kinds of Quadrilaterals',
+        'Special Parallelograms',
+      ],
+      'Data Handling': [
+        'Organising Data',
+        'Grouping Data & Histograms',
+        'Circle Graph or Pie Chart',
+        'Chance and Probability',
+      ],
+      'Squares and Square Roots': [
+        'Properties of Square Numbers',
+        'Finding Square Roots by Prime Factorisation',
+        'Finding Square Roots by Division Method',
+      ],
+      'Algebraic Expressions and Identities': [
+        'Terms, Factors and Coefficients',
+        'Multiplication of Algebraic Expressions',
+        'Standard Algebraic Identities',
+      ],
+      'Mensuration': [
+        'Area of Trapezium and General Quadrilateral',
+        'Surface Area of Cube, Cuboid and Cylinder',
+        'Volume of Cube, Cuboid and Cylinder',
+      ],
+    },
+    'Science': {
+      'Crop Production and Management': [
+        'Agricultural Practices',
+        'Basic Practices of Crop Production',
+        'Adding Manure and Fertilisers',
+        'Irrigation and Harvesting',
+      ],
+      'Microorganisms: Friend and Foe': [
+        'Where do Microorganisms Live',
+        'Commercial & Medicinal Uses',
+        'Vaccine and Disease-causing Microbes',
+        'Food Preservation',
+      ],
+      'Coal and Petroleum': [
+        'Fossil Fuels and Refining',
+        'Petroleum Products and Uses',
+        'Natural Gas and Conservation',
+      ],
+      'Cell Structure and Functions': [
+        'Discovery of the Cell',
+        'The Cell: Organelles & Cytoplasm',
+        'Plant and Animal Cells',
+      ],
+      'Force and Pressure': [
+        'Force: A Push or a Pull',
+        'Contact and Non-Contact Forces',
+        'Pressure Exerted by Liquids and Gases',
+        'Atmospheric Pressure',
+      ],
+      'Friction': [
+        'Factors Affecting Friction',
+        'Friction: A Necessary Evil',
+        'Increasing and Reducing Friction',
+        'Fluid Friction',
+      ],
+    },
+    'English': {
+      'The Best Christmas Present in the World': [
+        'Story Reading & Comprehension',
+        'Vocabulary and Idioms',
+        'Letter Writing Exercise',
+      ],
+      'The Tsunami': [
+        'Geography of Natural Hazards',
+        'Comprehension & Sequencing',
+        'Active and Passive Voice',
+      ],
+      'Glimpses of the Past': [
+        'Historical Context (1757-1857)',
+        'Direct and Indirect Speech',
+        'Comprehension Questions',
+      ],
+      'Bepin Choudhury\'s Lapse of Memory': [
+        'Story Analysis and Character Study',
+        'Phrasal Verbs and Usage',
+      ],
+    },
+    'Social Studies': {
+      'How, When and Where': [
+        'Periodisation in History',
+        'Colonial Period Sources & Surveys',
+        'Official Records vs Public Experiences',
+      ],
+      'From Trade to Territory': [
+        'East India Company Beginnings',
+        'Battle of Plassey & Company Rule',
+        'Setting up a New Administration',
+      ],
+      'Ruling the Countryside': [
+        'The Permanent Settlement',
+        'The Problem with Ryotwari System',
+        'The "Blue Rebellion" and After',
+      ],
+      'Tribals, Dikus and the Vision of a Golden Age': [
+        'How Tribal Groups Lived',
+        'Forest Laws and Their Impact',
+        'Birsa Munda Movement',
+      ],
+    },
+    'Hindi': {
+      'ध्वनि': [
+        'कविता का भावार्थ और सारांश',
+        'कठिन शब्दार्थ और वाक्य प्रयोग',
+        'प्रश्नोत्तर एवं व्याख्या',
+      ],
+      'लाख की चूड़ियाँ': [
+        'कहानी का वाचन एवं चरित्र चित्रण',
+        'ग्रामीण उद्योग और कारीगरों की स्थिति',
+        'भाषा की बात और व्याकरण',
+      ],
+    },
+    'Telugu': {
+      'త్యాగనిరతి': [
+        'పాఠ్యభాగ ఉద్దేశం మరియు నేపథ్యం',
+        'పద్యాల భావాలు మరియు తాత్పర్యం',
+        'వ్యాకరణాంశాలు మరియు సంధులు',
+      ],
+      'సముద్ర లంఘనం': [
+        'హనుమంతుని సాహసకృత్యం',
+        'విభక్తులు మరియు సమాసాలు',
+      ],
+    },
+  };
+
+  /// Returns list of standard subjects
+  static List<String> getStandardSubjects() {
+    return standardCurriculum.keys.toList();
+  }
+
+  /// Get chapters for a subject — never mixes subjects!
+  Future<List<String>> getChaptersForSubject(String subjectName, {String? schoolId}) async {
+    final cleanSubject = subjectName.trim();
+    // 1. Try Firestore school curriculum if schoolId is provided
+    if (_isFirebaseAvailable && schoolId != null && schoolId.isNotEmpty) {
+      try {
+        final query = await _privateCurriculumRef(schoolId)
+            .where('name', isEqualTo: cleanSubject)
+            .limit(1)
+            .get();
+        if (query.docs.isNotEmpty) {
+          final subj = SubjectCurriculumModel.fromMap(query.docs.first.data());
+          if (subj.chapters.isNotEmpty) {
+            return subj.chapters.map((c) => c.title).toList();
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Try global templates in Firestore
+    if (_isFirebaseAvailable) {
+      try {
+        final tmplDoc = await _templatesRef.doc('CBSE_CENTRAL').get();
+        if (tmplDoc.exists && tmplDoc.data() != null) {
+          final subjsRaw = (tmplDoc.data()!['standardSubjects'] as List<dynamic>?) ?? [];
+          for (var s in subjsRaw) {
+            if (s is Map<String, dynamic> && s['name']?.toString().toLowerCase() == cleanSubject.toLowerCase()) {
+              final chs = (s['chapters'] as List<dynamic>?) ?? [];
+              if (chs.isNotEmpty) {
+                return chs.map((c) => c['title']?.toString() ?? '').where((t) => t.isNotEmpty).toList();
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Match from standardCurriculum dictionary with case-insensitive fallback
+    for (var entry in standardCurriculum.entries) {
+      if (entry.key.toLowerCase() == cleanSubject.toLowerCase()) {
+        return entry.value.keys.toList();
+      }
+    }
+
+    // Fallback if custom subject not in standard list
+    return ['Unit 1: Foundations', 'Unit 2: Applied Concepts', 'Unit 3: Advanced Topics'];
+  }
+
+  /// Get topics strictly for a chapter within a subject
+  Future<List<String>> getTopicsForChapter(String subjectName, String chapterTitle, {String? schoolId}) async {
+    final cleanSubject = subjectName.trim();
+    final cleanChapter = chapterTitle.trim();
+
+    // 1. Check school curriculum in Firestore
+    if (_isFirebaseAvailable && schoolId != null && schoolId.isNotEmpty) {
+      try {
+        final query = await _privateCurriculumRef(schoolId)
+            .where('name', isEqualTo: cleanSubject)
+            .limit(1)
+            .get();
+        if (query.docs.isNotEmpty) {
+          final subj = SubjectCurriculumModel.fromMap(query.docs.first.data());
+          final ch = subj.chapters.firstWhere(
+            (c) => c.title.toLowerCase() == cleanChapter.toLowerCase(),
+            orElse: () => ChapterModel(id: '', chapterNumber: 0, title: '', progress: 0, topics: []),
+          );
+          if (ch.topics.isNotEmpty) {
+            return ch.topics.map((t) => t.title).toList();
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Check standardCurriculum dictionary
+    for (var entry in standardCurriculum.entries) {
+      if (entry.key.toLowerCase() == cleanSubject.toLowerCase()) {
+        for (var chEntry in entry.value.entries) {
+          if (chEntry.key.toLowerCase() == cleanChapter.toLowerCase()) {
+            return chEntry.value;
+          }
+        }
+        // If chapter not found exactly in that subject, return first chapter's topics of that subject
+        if (entry.value.isNotEmpty) {
+          return entry.value.values.first;
+        }
+      }
+    }
+
+    return ['Core Concept & Definitions', 'Practical Applications', 'Review and Mastery'];
+  }
+
   /// Auto-seed standard curriculum templates into Firestore if collection is empty
   Future<void> seedCurriculumTemplatesIfEmpty() async {
     try {

@@ -1129,51 +1129,230 @@ class TeacherWorksheetResponse(BaseModel):
     title: str
     grade_or_class: str
     subject: str
+    chapter: str = ""
+    topic: str = ""
     instructions: List[str]
     sections: List[dict]
     answer_key: List[str]
 
 @app.post("/teacher-hub/worksheet/", response_model=TeacherWorksheetResponse, summary="Generate structured printable classroom worksheet")
 def generate_teacher_worksheet(req: TeacherWorksheetRequest):
-    return TeacherWorksheetResponse(
-        title=f"{req.subject} Classroom Practice Worksheet - {req.topic}",
-        grade_or_class=req.grade_or_class,
-        subject=req.subject,
-        instructions=[
-            "Read each question carefully before answering.",
-            "Show all intermediate working steps for calculation problems.",
-            "Write your Name, Roll Number, and Date in the header section."
-        ],
-        sections=[
-            {
-                "section_name": "Section A: Conceptual Recall (1 Mark Each)",
-                "questions": [
-                    f"State the foundational definition of {req.topic}.",
-                    f"Give one everyday example where {req.topic} is observed."
-                ]
-            },
-            {
-                "section_name": "Section B: Analytical Application (3 Marks Each)",
-                "questions": [
-                    f"Solve the practice problem related to {req.topic} demonstrating all mathematical/scientific steps.",
-                    f"Contrast two distinct cases where {req.topic} behaves differently under varied conditions."
-                ]
-            },
-            {
-                "section_name": "Section C: Higher Order Thinking Skills (5 Marks)",
-                "questions": [
-                    f"Design a brief experiment or real-world model to test the principles of {req.topic} in a laboratory environment."
-                ]
-            }
-        ],
-        answer_key=[
-            "1. Accurate foundational definition per textbook glossary.",
-            "2. Valid verified real-world example.",
-            "3. Step-by-step arithmetic or conceptual derivation.",
-            "4. Comprehensive comparison highlighting boundary conditions.",
-            "5. Logical experimental protocol including control and variables."
-        ]
-    )
+    try:
+        prompt = f"""You are a master teacher and curriculum specialist for Indian Schools (CBSE / SCERT).
+Generate a high-quality, printable classroom practice worksheet for:
+Class: {req.grade_or_class}
+Subject: {req.subject}
+Chapter: {req.chapter}
+Topic: {req.topic}
+Total Questions: {req.num_questions}
+
+Format your response as valid, pure JSON with this exact structure (no surrounding markdown code blocks):
+{{
+  "title": "{req.subject} Classroom Worksheet: {req.topic}",
+  "grade_or_class": "{req.grade_or_class}",
+  "subject": "{req.subject}",
+  "chapter": "{req.chapter}",
+  "topic": "{req.topic}",
+  "instructions": [
+    "Read each question carefully before attempting your answer.",
+    "Show complete step-by-step working for numerical and derivation questions.",
+    "Write neatly with pencil/pen and mention units where applicable."
+  ],
+  "sections": [
+    {{
+      "section_name": "Section A: Conceptual Recall (1-2 Marks Each)",
+      "questions": [
+        "1. Write the precise definition or primary law of {req.topic}.",
+        "2. State one daily life observation where {req.topic} is directly demonstrated."
+      ]
+    }},
+    {{
+      "section_name": "Section B: Analytical Application & Problem Solving (3 Marks Each)",
+      "questions": [
+        "3. A standard syllabus problem requiring students to apply formulas or conceptual principles of {req.topic}.",
+        "4. Differentiate between two key aspects or conditions of {req.topic} with supporting reasons."
+      ]
+    }},
+    {{
+      "section_name": "Section C: Higher-Order Thinking Skills & Challenge (5 Marks)",
+      "questions": [
+        "5. A multi-step scenario-based problem or experimental design question testing deep understanding of {req.topic}."
+      ]
+    }}
+  ],
+  "answer_key": [
+    "1. Exact textbook definition and fundamental terms.",
+    "2. Valid observable real-world application.",
+    "3. Step-by-step numerical/algebraic solution showing intermediate steps.",
+    "4. Comparative distinction table with 2 points of contrast.",
+    "5. Comprehensive solution with reasoned justification."
+  ]
+}}"""
+        resp = groq_client.generate_content(prompt).strip()
+        if resp.startswith("```json"):
+            resp = resp[7:]
+        if resp.startswith("```"):
+            resp = resp[3:]
+        if resp.endswith("```"):
+            resp = resp[:-3]
+        data = json.loads(resp.strip())
+        return TeacherWorksheetResponse(**data)
+    except Exception as e:
+        logger.warning(f"Dynamic worksheet generation error: {e}, using syllabus fallback")
+        return TeacherWorksheetResponse(
+            title=f"{req.subject} Practice Worksheet: {req.chapter} - {req.topic}",
+            grade_or_class=req.grade_or_class,
+            subject=req.subject,
+            chapter=req.chapter,
+            topic=req.topic,
+            instructions=[
+                "Read each question carefully before attempting.",
+                "Show all derivation steps, equations, and units clearly.",
+                "Write your Name, Roll Number, and Date in the header section."
+            ],
+            sections=[
+                {
+                    "section_name": "Section A: Conceptual Understanding (1-2 Marks)",
+                    "questions": [
+                        f"1. Define {req.topic} in the context of {req.subject}.",
+                        f"2. Mention two key properties or characteristics of {req.topic}."
+                    ]
+                },
+                {
+                    "section_name": "Section B: Analytical Application (3-4 Marks)",
+                    "questions": [
+                        f"3. Solve a standard practice exercise on {req.topic} showing all intermediate working steps.",
+                        f"4. How does {req.topic} relate to concepts studied in {req.chapter}? Explain with an illustrative diagram or example."
+                    ]
+                },
+                {
+                    "section_name": "Section C: Higher Order Thinking Skills (HOTS - 5 Marks)",
+                    "questions": [
+                        f"5. Formulate a real-world scenario or laboratory experiment that tests the principles of {req.topic}."
+                    ]
+                }
+            ],
+            answer_key=[
+                f"1. Accurate foundational definition of {req.topic}.",
+                "2. Stated 2 distinct verified properties.",
+                "3. Step-by-step arithmetic or logical derivation.",
+                "4. Clear relational explanation with annotated diagram.",
+                "5. Logical experimental procedure with control, variables, and observation."
+            ]
+        )
+
+# ─── TEACHER LEARNING INSIGHTS ENGINE ──────────────────────────────────────
+class TeacherLearningInsightsRequest(BaseModel):
+    grade_or_class: str = "Class 8"
+    subject: str = "Mathematics"
+    chapter: str = ""
+    topic: str = "Core Curriculum"
+    student_count: int = 25
+    average_score: float = 72.0
+    submission_rate: float = 85.0
+    weak_areas: List[str] = []
+
+class CohortBreakdown(BaseModel):
+    advanced: int
+    proficient: int
+    struggling: int
+
+class TeacherLearningInsightsResponse(BaseModel):
+    grade_or_class: str
+    subject: str
+    topic: str
+    average_mastery: float
+    total_students: int
+    cohorts: CohortBreakdown
+    weak_concepts: List[str]
+    strength_areas: List[str]
+    remediation_strategies: List[str]
+    recommended_next_action: str
+
+@app.post("/teacher-hub/learning-insights/", response_model=TeacherLearningInsightsResponse, summary="Generate diagnostic pedagogical insights from student performance")
+def generate_teacher_learning_insights(req: TeacherLearningInsightsRequest):
+    try:
+        struggling_calc = max(1, round(req.student_count * max(0.05, (100.0 - req.average_score) / 100.0 * 0.6)))
+        advanced_calc = max(1, round(req.student_count * max(0.1, req.average_score / 100.0 * 0.4)))
+        proficient_calc = max(0, req.student_count - struggling_calc - advanced_calc)
+
+        prompt = f"""You are a Senior Academic Auditor and Pedagogical Data Analyst for Indian Schools.
+Analyze the following student performance data and generate targeted pedagogical insights:
+Class: {req.grade_or_class}
+Subject: {req.subject}
+Chapter/Topic: {req.chapter or req.topic}
+Total Assessed Students: {req.student_count}
+Class Average Mastery: {req.average_score}%
+Assignment Submission Rate: {req.submission_rate}%
+Reported Struggle Areas: {', '.join(req.weak_areas) if req.weak_areas else 'Multi-step problem solving and conceptual application'}
+
+Return strictly valid JSON with this exact structure (no surrounding markdown code blocks):
+{{
+  "grade_or_class": "{req.grade_or_class}",
+  "subject": "{req.subject}",
+  "topic": "{req.topic}",
+  "average_mastery": {req.average_score},
+  "total_students": {req.student_count},
+  "cohorts": {{
+    "advanced": {advanced_calc},
+    "proficient": {proficient_calc},
+    "struggling": {struggling_calc}
+  }},
+  "weak_concepts": [
+    "Conceptual struggle point 1 specific to {req.topic}",
+    "Common computational or procedural error identified in {req.subject}"
+  ],
+  "strength_areas": [
+    "Foundational recall and positive engagement during classroom activities",
+    "High accuracy in introductory definition and standard questions"
+  ],
+  "remediation_strategies": [
+    "Pair struggling learners with proficient peers for 10-minute guided peer practice",
+    "Provide visual step-by-step scaffolds for {req.topic}",
+    "Conduct a 15-minute targeted remediation session before next summative exam"
+  ],
+  "recommended_next_action": "Actionable teacher directive for tomorrow's class period."
+}}"""
+        resp = groq_client.generate_content(prompt).strip()
+        if resp.startswith("```json"):
+            resp = resp[7:]
+        if resp.startswith("```"):
+            resp = resp[3:]
+        if resp.endswith("```"):
+            resp = resp[:-3]
+        data = json.loads(resp.strip())
+        return TeacherLearningInsightsResponse(**data)
+    except Exception as e:
+        logger.warning(f"Dynamic insights generation error: {e}, using rule-based metrics")
+        struggling_fallback = max(1, round(req.student_count * 0.2))
+        advanced_fallback = max(1, round(req.student_count * 0.3))
+        proficient_fallback = max(0, req.student_count - struggling_fallback - advanced_fallback)
+        return TeacherLearningInsightsResponse(
+            grade_or_class=req.grade_or_class,
+            subject=req.subject,
+            topic=req.topic,
+            average_mastery=req.average_score,
+            total_students=req.student_count,
+            cohorts=CohortBreakdown(
+                advanced=advanced_fallback,
+                proficient=proficient_fallback,
+                struggling=struggling_fallback
+            ),
+            weak_concepts=[
+                f"Multi-step problem solving and calculation rigor in {req.topic}",
+                f"Application of {req.subject} principles to non-routine exam questions"
+            ],
+            strength_areas=[
+                f"Textbook recall and definition retention for {req.topic}",
+                f"Classroom participation during interactive discussions"
+            ],
+            remediation_strategies=[
+                f"Conduct a 10-minute targeted diagnostic re-teaching on {req.topic}",
+                "Provide scaffolded step-by-step worksheets with worked examples",
+                "Utilize peer-assisted learning pairs during problem-solving sessions"
+            ],
+            recommended_next_action=f"Assign a 3-question formative exit ticket on {req.topic} to assess remediation impact."
+        )
 
 class TeacherAssistantChatRequest(BaseModel):
     question: str

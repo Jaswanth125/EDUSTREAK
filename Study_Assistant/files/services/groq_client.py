@@ -115,7 +115,7 @@ class GroqClient:
         except Exception as e:
             raise GroqAPIException(f"Error answering question: {str(e)}")
     
-    def chat(self, message, conversation_history=None):
+    def chat(self, message, conversation_history=None, max_tokens=2500):
         """
         General chat with AI without document context.
         """
@@ -129,8 +129,8 @@ class GroqClient:
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 1024,
+            "temperature": 0.5,
+            "max_tokens": max_tokens,
         }
         
         try:
@@ -143,11 +143,11 @@ class GroqClient:
         except Exception as e:
             raise GroqAPIException(f"Error in chat: {str(e)}")
     
-    def generate_content(self, prompt: str) -> str:
+    def generate_content(self, prompt: str, max_tokens: int = 2500) -> str:
         """
         Convenience wrapper for generating content from a single prompt.
         """
-        return self.chat(prompt)
+        return self.chat(prompt, max_tokens=max_tokens)
     
     def generate_summary(self, topic, context):
         """
