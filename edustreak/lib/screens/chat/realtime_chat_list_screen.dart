@@ -31,7 +31,31 @@ class _RealtimeChatListScreenState extends State<RealtimeChatListScreen> {
 
   ChatModel? _selectedChat;
   bool _showInfoPanel = true;
-  List<MessageModel> _currentMessages = [];
+  final ValueNotifier<List<MessageModel>> _messagesNotifier = ValueNotifier<List<MessageModel>>([]);
+  UserModel? _presenceUser;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+        if (user != null) {
+          _presenceUser = user;
+          _chatService.updatePresence(userId: user.id, isOnline: true);
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_presenceUser != null) {
+      _chatService.updatePresence(userId: _presenceUser!.id, isOnline: false);
+    }
+    _messagesNotifier.dispose();
+    super.dispose();
+  }
 
   void _onSelectChat(BuildContext context, ChatModel chat, bool isMobile, UserModel currentUser) {
     if (isMobile) {
@@ -41,15 +65,18 @@ class _RealtimeChatListScreenState extends State<RealtimeChatListScreen> {
             chat: chat,
             chatId: chat.id,
             otherUserId: chat.getOtherParticipantId(currentUser.id),
-            otherUserName: chat.getOtherParticipantName(currentUser.id),
-            otherUserRole: chat.getOtherParticipantRole(currentUser.id),
+            otherUserName: _chatService.resolveParticipantNameSync(chat, currentUser.id),
+            otherUserRole: _chatService.resolveParticipantRoleSync(chat, currentUser.id),
           ),
         ),
       );
     } else {
-      setState(() {
-        _selectedChat = chat;
-      });
+      if (_selectedChat?.id != chat.id) {
+        _messagesNotifier.value = [];
+        setState(() {
+          _selectedChat = chat;
+        });
+      }
     }
   }
 
@@ -113,23 +140,28 @@ class _RealtimeChatListScreenState extends State<RealtimeChatListScreen> {
               ? Drawer(
                   backgroundColor: EduStreakTheme.studentDarkSidebar,
                   child: SafeArea(
-                    child: ChatInfoPanel(
-                      currentUser: currentUser,
-                      chat: _selectedChat!,
-                      messages: _currentMessages,
-                      onClose: () => Navigator.of(context).pop(),
-                      onToggleMute: () {
-                        final isMuted = _selectedChat!.isMutedFor(currentUser.id);
-                        _chatService.toggleMuteChat(
-                          chatId: _selectedChat!.id,
-                          userId: currentUser.id,
-                          currentMuted: isMuted,
-                        );
-                      },
-                      onTogglePin: () {
-                        _chatService.togglePinChat(
-                          chatId: _selectedChat!.id,
-                          currentIsPinned: _selectedChat!.isPinned,
+                    child: ValueListenableBuilder<List<MessageModel>>(
+                      valueListenable: _messagesNotifier,
+                      builder: (context, messages, _) {
+                        return ChatInfoPanel(
+                          currentUser: currentUser,
+                          chat: _selectedChat!,
+                          messages: messages,
+                          onClose: () => Navigator.of(context).pop(),
+                          onToggleMute: () {
+                            final isMuted = _selectedChat!.isMutedFor(currentUser.id);
+                            _chatService.toggleMuteChat(
+                              chatId: _selectedChat!.id,
+                              userId: currentUser.id,
+                              currentMuted: isMuted,
+                            );
+                          },
+                          onTogglePin: () {
+                            _chatService.togglePinChat(
+                              chatId: _selectedChat!.id,
+                              currentIsPinned: _selectedChat!.isPinned,
+                            );
+                          },
                         );
                       },
                     ),
@@ -163,20 +195,17 @@ class _RealtimeChatListScreenState extends State<RealtimeChatListScreen> {
                       Expanded(
                         child: _selectedChat != null
                             ? ChatWindowView(
+                                key: ValueKey('chat_window_${_selectedChat!.id}'),
                                 currentUser: currentUser,
                                 chat: _selectedChat!,
                                 isMobile: false,
                                 isInfoPanelOpen: _showInfoPanel,
+                                messagesNotifier: _messagesNotifier,
                                 onToggleInfoPanel: () {
                                   if (isTablet) {
                                     _scaffoldKey.currentState?.openEndDrawer();
                                   } else {
                                     setState(() => _showInfoPanel = !_showInfoPanel);
-                                  }
-                                },
-                                onMessagesUpdated: (msgs) {
-                                  if (mounted) {
-                                    setState(() => _currentMessages = msgs);
                                   }
                                 },
                               )
@@ -187,23 +216,28 @@ class _RealtimeChatListScreenState extends State<RealtimeChatListScreen> {
                       if (isDesktop && _selectedChat != null && _showInfoPanel)
                         SizedBox(
                           width: 300,
-                          child: ChatInfoPanel(
-                            currentUser: currentUser,
-                            chat: _selectedChat!,
-                            messages: _currentMessages,
-                            onClose: () => setState(() => _showInfoPanel = false),
-                            onToggleMute: () {
-                              final isMuted = _selectedChat!.isMutedFor(currentUser.id);
-                              _chatService.toggleMuteChat(
-                                chatId: _selectedChat!.id,
-                                userId: currentUser.id,
-                                currentMuted: isMuted,
-                              );
-                            },
-                            onTogglePin: () {
-                              _chatService.togglePinChat(
-                                chatId: _selectedChat!.id,
-                                currentIsPinned: _selectedChat!.isPinned,
+                          child: ValueListenableBuilder<List<MessageModel>>(
+                            valueListenable: _messagesNotifier,
+                            builder: (context, messages, _) {
+                              return ChatInfoPanel(
+                                currentUser: currentUser,
+                                chat: _selectedChat!,
+                                messages: messages,
+                                onClose: () => setState(() => _showInfoPanel = false),
+                                onToggleMute: () {
+                                  final isMuted = _selectedChat!.isMutedFor(currentUser.id);
+                                  _chatService.toggleMuteChat(
+                                    chatId: _selectedChat!.id,
+                                    userId: currentUser.id,
+                                    currentMuted: isMuted,
+                                  );
+                                },
+                                onTogglePin: () {
+                                  _chatService.togglePinChat(
+                                    chatId: _selectedChat!.id,
+                                    currentIsPinned: _selectedChat!.isPinned,
+                                  );
+                                },
                               );
                             },
                           ),

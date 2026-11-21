@@ -16,6 +16,7 @@ class ChatWindowView extends StatefulWidget {
   final bool isInfoPanelOpen;
   final bool isMobile;
   final Function(List<MessageModel> messages)? onMessagesUpdated;
+  final ValueNotifier<List<MessageModel>>? messagesNotifier;
 
   const ChatWindowView({
     super.key,
@@ -26,6 +27,7 @@ class ChatWindowView extends StatefulWidget {
     this.isInfoPanelOpen = false,
     this.isMobile = false,
     this.onMessagesUpdated,
+    this.messagesNotifier,
   });
 
   @override
@@ -37,12 +39,29 @@ class _ChatWindowViewState extends State<ChatWindowView> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _inChatSearchController = TextEditingController();
 
+  Stream<List<MessageModel>>? _messagesStream;
+  Stream<ChatModel?>? _chatStream;
+  Stream<Map<String, dynamic>?>? _presenceStream;
+  String? _subscribedChatId;
+
   bool _isSearching = false;
   MessageModel? _replyToMessage;
+  int _previousMessageCount = 0;
+
+  void _initStreams() {
+    if (_subscribedChatId != widget.chat.id) {
+      _subscribedChatId = widget.chat.id;
+      _messagesStream = _chatService.streamMessages(widget.chat.id);
+      _chatStream = _chatService.streamChat(widget.chat.id);
+      final otherUserId = widget.chat.getOtherParticipantId(widget.currentUser.id);
+      _presenceStream = _chatService.streamUserPresence(otherUserId);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _initStreams();
     _markRead();
     _inChatSearchController.addListener(() => setState(() {}));
   }
@@ -51,9 +70,11 @@ class _ChatWindowViewState extends State<ChatWindowView> {
   void didUpdateWidget(covariant ChatWindowView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.chat.id != widget.chat.id) {
+      _initStreams();
       _markRead();
       _replyToMessage = null;
       _isSearching = false;
+      _previousMessageCount = 0;
       _inChatSearchController.clear();
     }
   }
@@ -63,6 +84,39 @@ class _ChatWindowViewState extends State<ChatWindowView> {
     _scrollController.dispose();
     _inChatSearchController.dispose();
     super.dispose();
+  }
+
+  bool _isMessageListEqual(List<MessageModel> a, List<MessageModel> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    if (a.isEmpty && b.isEmpty) return true;
+    return a.first.id == b.first.id && a.last.id == b.last.id;
+  }
+
+  void _syncMessages(List<MessageModel> messages) {
+    if (widget.messagesNotifier != null && !_isMessageListEqual(widget.messagesNotifier!.value, messages)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.messagesNotifier != null) {
+          widget.messagesNotifier!.value = messages;
+        }
+      });
+    }
+
+    // Auto-scroll on new message if user is near the bottom
+    if (messages.length > _previousMessageCount) {
+      _previousMessageCount = messages.length;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scrollController.hasClients) {
+          if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 140) {
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent + 80,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+      });
+    }
   }
 
   void _markRead() {
@@ -342,8 +396,8 @@ class _ChatWindowViewState extends State<ChatWindowView> {
 
   @override
   Widget build(BuildContext context) {
-    final otherName = widget.chat.getOtherParticipantName(widget.currentUser.id);
-    final otherRole = widget.chat.getOtherParticipantRole(widget.currentUser.id);
+    final otherName = _chatService.resolveParticipantNameSync(widget.chat, widget.currentUser.id);
+    final otherRole = _chatService.resolveParticipantRoleSync(widget.chat, widget.currentUser.id);
     final roleColor = _getRoleColor(otherRole);
 
     return Container(
@@ -373,56 +427,65 @@ class _ChatWindowViewState extends State<ChatWindowView> {
                   const SizedBox(width: 4),
                 ],
 
-                // Avatar
-                Stack(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [
-                            roleColor.withAlpha((0.85 * 255).round()),
-                            roleColor.withAlpha((0.45 * 255).round()),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          otherName.isNotEmpty ? otherName[0].toUpperCase() : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                // Avatar with real reactive online status
+                StreamBuilder<Map<String, dynamic>?>(
+                  stream: _presenceStream,
+                  builder: (context, presenceSnap) {
+                    final presence = presenceSnap.data;
+                    final isOnline = presence?['isOnline'] == true;
+
+                    return Stack(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                roleColor.withAlpha((0.85 * 255).round()),
+                                roleColor.withAlpha((0.45 * 255).round()),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              otherName.isNotEmpty ? otherName[0].toUpperCase() : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 11,
-                        height: 11,
-                        decoration: BoxDecoration(
-                          color: EduStreakTheme.emeraldGreen,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: EduStreakTheme.studentDarkHeader,
-                            width: 2,
+                        if (isOnline)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 11,
+                              height: 11,
+                              decoration: BoxDecoration(
+                                color: EduStreakTheme.emeraldGreen,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: EduStreakTheme.studentDarkHeader,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
 
                 const SizedBox(width: 12),
 
-                // Name & Role
+                // Name & Role & Real-Time Presence
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,25 +528,57 @@ class _ChatWindowViewState extends State<ChatWindowView> {
                         ],
                       ),
                       const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: EduStreakTheme.emeraldGreen,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Active Now',
-                            style: TextStyle(
-                              color: EduStreakTheme.studentDarkTextMuted,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
+                      StreamBuilder<Map<String, dynamic>?>(
+                        stream: _presenceStream,
+                        builder: (context, presenceSnap) {
+                          final presence = presenceSnap.data;
+                          final isOnline = presence?['isOnline'] == true;
+                          final lastSeenVal = presence?['lastSeen'];
+                          DateTime? lastSeen;
+                          if (lastSeenVal is DateTime) lastSeen = lastSeenVal;
+
+                          String statusText;
+                          Color statusColor;
+
+                          if (isOnline) {
+                            statusText = 'Active Now';
+                            statusColor = EduStreakTheme.emeraldGreen;
+                          } else if (lastSeen != null) {
+                            final diff = DateTime.now().difference(lastSeen);
+                            if (diff.inMinutes < 60) {
+                              statusText = 'Active ${diff.inMinutes}m ago';
+                            } else if (diff.inHours < 24) {
+                              statusText = 'Active ${diff.inHours}h ago';
+                            } else {
+                              statusText = 'Offline';
+                            }
+                            statusColor = EduStreakTheme.studentDarkTextMuted;
+                          } else {
+                            statusText = 'Offline';
+                            statusColor = EduStreakTheme.studentDarkTextMuted;
+                          }
+
+                          return Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: statusColor,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                statusText,
+                                style: TextStyle(
+                                  color: EduStreakTheme.studentDarkTextMuted,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -553,21 +648,19 @@ class _ChatWindowViewState extends State<ChatWindowView> {
               ),
             ),
 
-          // Messages List Stream
+          // Messages List Stream (Stable subscription)
           Expanded(
             child: StreamBuilder<List<MessageModel>>(
-              stream: _chatService.streamMessages(widget.chat.id),
+              stream: _messagesStream,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                   return const Center(
                     child: CircularProgressIndicator(color: EduStreakTheme.primaryViolet),
                   );
                 }
 
                 final messages = snapshot.data ?? [];
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  widget.onMessagesUpdated?.call(messages);
-                });
+                _syncMessages(messages);
 
                 final searchQuery = _inChatSearchController.text.trim().toLowerCase();
                 final displayMessages = searchQuery.isEmpty
@@ -638,6 +731,7 @@ class _ChatWindowViewState extends State<ChatWindowView> {
                     }
 
                     return Column(
+                      key: ValueKey('msg_${message.id}'),
                       children: [
                         if (showDateSeparator && message.timestamp != null)
                           Padding(
@@ -674,9 +768,9 @@ class _ChatWindowViewState extends State<ChatWindowView> {
             ),
           ),
 
-          // Live Typing Indicator
+          // Live Typing Indicator (Stable Stream)
           StreamBuilder<ChatModel?>(
-            stream: _chatService.streamChat(widget.chat.id),
+            stream: _chatStream,
             builder: (context, chatSnap) {
               final activeChat = chatSnap.data ?? widget.chat;
               final otherId = widget.chat.getOtherParticipantId(widget.currentUser.id);

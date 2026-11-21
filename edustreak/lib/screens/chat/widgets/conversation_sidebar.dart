@@ -28,11 +28,29 @@ class _ConversationSidebarState extends State<ConversationSidebar> {
   final RealtimeChatService _chatService = RealtimeChatService();
   final TextEditingController _searchController = TextEditingController();
   String _selectedFilter = 'all'; // all, unread, teacher, student, parent
+  Stream<List<ChatModel>>? _chatsStream;
+  String? _cachedUserId;
+
+  void _initChatsStream() {
+    if (_chatsStream == null || _cachedUserId != widget.currentUser.id) {
+      _cachedUserId = widget.currentUser.id;
+      _chatsStream = _chatService.getUserChatsStream(widget.currentUser.id);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _initChatsStream();
     _searchController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void didUpdateWidget(covariant ConversationSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentUser.id != widget.currentUser.id) {
+      _initChatsStream();
+    }
   }
 
   @override
@@ -332,12 +350,12 @@ class _ConversationSidebarState extends State<ConversationSidebar> {
           const SizedBox(height: 8),
           const Divider(color: EduStreakTheme.studentDarkBorder, height: 1),
 
-          // Realtime Conversation List Stream
+          // Realtime Conversation List Stream (Stable subscription)
           Expanded(
             child: StreamBuilder<List<ChatModel>>(
-              stream: _chatService.getUserChatsStream(widget.currentUser.id),
+              stream: _chatsStream,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                   return const Center(
                     child: CircularProgressIndicator(color: EduStreakTheme.primaryViolet),
                   );
@@ -367,8 +385,8 @@ class _ConversationSidebarState extends State<ConversationSidebar> {
                 final query = _searchController.text.trim().toLowerCase();
 
                 final filteredChats = rawChats.where((chat) {
-                  final otherName = chat.getOtherParticipantName(widget.currentUser.id).toLowerCase();
-                  final otherRole = chat.getOtherParticipantRole(widget.currentUser.id).toLowerCase();
+                  final otherName = _chatService.resolveParticipantNameSync(chat, widget.currentUser.id).toLowerCase();
+                  final otherRole = _chatService.resolveParticipantRoleSync(chat, widget.currentUser.id).toLowerCase();
                   final lastMsg = chat.lastMessage.toLowerCase();
 
                   // Filter chip logic
@@ -434,14 +452,17 @@ class _ConversationSidebarState extends State<ConversationSidebar> {
                   separatorBuilder: (_, __) => const SizedBox(height: 4),
                   itemBuilder: (context, index) {
                     final chat = filteredChats[index];
+                    final otherId = chat.getOtherParticipantId(widget.currentUser.id);
                     final isSelected = widget.selectedChatId == chat.id;
-                    final otherName = chat.getOtherParticipantName(widget.currentUser.id);
-                    final otherRole = chat.getOtherParticipantRole(widget.currentUser.id);
+                    final otherName = _chatService.resolveParticipantNameSync(chat, widget.currentUser.id);
+                    final otherRole = _chatService.resolveParticipantRoleSync(chat, widget.currentUser.id);
                     final unreadCount = chat.getUnreadCount(widget.currentUser.id);
                     final roleColor = _getRoleColor(otherRole);
                     final isMuted = chat.isMutedFor(widget.currentUser.id);
+                    final isOnline = _chatService.isUserOnlineSync(otherId);
 
                     return Material(
+                      key: ValueKey('sidebar_chat_${chat.id}'),
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(14),
                       child: InkWell(
@@ -501,23 +522,24 @@ class _ConversationSidebarState extends State<ConversationSidebar> {
                                       ),
                                     ),
                                   ),
-                                  // Online Status dot
-                                  Positioned(
-                                    right: 0,
-                                    bottom: 0,
-                                    child: Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: BoxDecoration(
-                                        color: EduStreakTheme.emeraldGreen,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: EduStreakTheme.studentDarkSidebar,
-                                          width: 2,
+                                  // Online Status dot (only shown when user is actually online)
+                                  if (isOnline)
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        width: 12,
+                                        height: 12,
+                                        decoration: BoxDecoration(
+                                          color: EduStreakTheme.emeraldGreen,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: EduStreakTheme.studentDarkSidebar,
+                                            width: 2,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
                                 ],
                               ),
 

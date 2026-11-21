@@ -42,6 +42,7 @@ class _ChatMessageComposerState extends State<ChatMessageComposer> {
 
   bool _showEmojiShelf = false;
   bool _isUploadingAttachment = false;
+  bool _isSending = false;
   Map<String, dynamic>? _selectedAttachment;
   Timer? _typingTimer;
   bool _wasTyping = false;
@@ -105,8 +106,8 @@ class _ChatMessageComposerState extends State<ChatMessageComposer> {
     return KeyEventResult.ignored;
   }
 
-  void _handleSend() {
-    if (_isUploadingAttachment) return;
+  Future<void> _handleSend() async {
+    if (_isUploadingAttachment || _isSending) return;
     final text = _textController.text.trim();
     if (text.isEmpty && _selectedAttachment == null) return;
 
@@ -116,21 +117,31 @@ class _ChatMessageComposerState extends State<ChatMessageComposer> {
       widget.onTypingStatusChanged?.call(false);
     }
 
-    widget.onSendMessage(
-      text: text,
-      type: _selectedAttachment?['type'] ?? 'text',
-      attachmentUrl: _selectedAttachment?['url'],
-      attachmentName: _selectedAttachment?['name'],
-      attachmentSize: _selectedAttachment?['size'],
-    );
+    final att = _selectedAttachment;
+    setState(() => _isSending = true);
 
-    _textController.clear();
-    setState(() {
-      _selectedAttachment = null;
-      _showEmojiShelf = false;
-    });
+    try {
+      await widget.onSendMessage(
+        text: text,
+        type: att?['type'] ?? 'text',
+        attachmentUrl: att?['url'],
+        attachmentName: att?['name'],
+        attachmentSize: att?['size'],
+      );
 
-    _focusNode.requestFocus();
+      _textController.clear();
+      if (mounted) {
+        setState(() {
+          _selectedAttachment = null;
+          _showEmojiShelf = false;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+        _focusNode.requestFocus();
+      }
+    }
   }
 
   Future<void> _pickAttachment(String type) async {
@@ -244,7 +255,7 @@ class _ChatMessageComposerState extends State<ChatMessageComposer> {
 
   @override
   Widget build(BuildContext context) {
-    final canSend = !_isUploadingAttachment &&
+    final canSend = !_isUploadingAttachment && !_isSending &&
         (_textController.text.trim().isNotEmpty || _selectedAttachment != null);
 
     return Container(
@@ -570,11 +581,17 @@ class _ChatMessageComposerState extends State<ChatMessageComposer> {
                             : null,
                       ),
                       child: Center(
-                        child: Icon(
-                          Icons.send_rounded,
-                          color: canSend ? Colors.white : EduStreakTheme.studentDarkTextMuted,
-                          size: 20,
-                        ),
+                        child: _isSending
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Icon(
+                                Icons.send_rounded,
+                                color: canSend ? Colors.white : EduStreakTheme.studentDarkTextMuted,
+                                size: 20,
+                              ),
                       ),
                     ),
                   ),

@@ -96,10 +96,11 @@ class RealtimeChatService {
       if (snapshot.exists) {
         final existing = snapshot.data()!;
         final updatedData = <String, dynamic>{};
-        if (currentUserName != null && (existing['participantNames']?[currentUserId] == null)) {
+        final pNames = existing['participantNames'] as Map<dynamic, dynamic>? ?? {};
+        if (currentUserName != null && (pNames[currentUserId] == null || pNames[currentUserId] == 'User')) {
           updatedData['participantNames.$currentUserId'] = currentUserName;
         }
-        if (otherUserName != null && (existing['participantNames']?[otherUserId] == null)) {
+        if (otherUserName != null && (pNames[otherUserId] == null || pNames[otherUserId] == 'User')) {
           updatedData['participantNames.$otherUserId'] = otherUserName;
         }
         if (schoolId != null && existing['schoolId'] == null) {
@@ -140,6 +141,139 @@ class RealtimeChatService {
       transaction.set(chatRef, chatData);
       return ChatModel.fromMap(chatData, chatId);
     });
+  }
+
+  // ── User Profile & Presence Caching ───────────────────────────────────────
+  static final Map<String, Map<String, dynamic>> _userProfileCache = {};
+  static final Map<String, Completer<Map<String, dynamic>?>> _inFlightProfiles = {};
+
+  /// Asynchronously retrieve and cache user profile details from Firestore
+  Future<Map<String, dynamic>?> getParticipantProfile(String userId) async {
+    if (userId.isEmpty) return null;
+    if (_userProfileCache.containsKey(userId)) {
+      return _userProfileCache[userId];
+    }
+    if (_inFlightProfiles.containsKey(userId)) {
+      return _inFlightProfiles[userId]!.future;
+    }
+
+    final completer = Completer<Map<String, dynamic>?>();
+    _inFlightProfiles[userId] = completer;
+
+    try {
+      final firestore = _firestoreOrNull;
+      if (firestore == null) {
+        completer.complete(null);
+        _inFlightProfiles.remove(userId);
+        return null;
+      }
+      final doc = await firestore.collection('users').doc(userId).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        _userProfileCache[userId] = data;
+        completer.complete(data);
+      } else {
+        completer.complete(null);
+      }
+    } catch (_) {
+      completer.complete(null);
+    } finally {
+      _inFlightProfiles.remove(userId);
+    }
+    return completer.future;
+  }
+
+  /// Synchronously resolve participant name from chat record or memory cache,
+  /// triggering a background cache fill if missing to prevent generic "User".
+  String resolveParticipantNameSync(ChatModel chat, String currentUserId) {
+    final otherId = chat.getOtherParticipantId(currentUserId);
+    final stored = chat.participantNames[otherId]?.trim();
+    if (stored != null && stored.isNotEmpty && stored.toLowerCase() != 'user') {
+      return stored;
+    }
+    final cached = _userProfileCache[otherId]?['name']?.toString().trim();
+    if (cached != null && cached.isNotEmpty && cached.toLowerCase() != 'user') {
+      return cached;
+    }
+
+    // Trigger non-blocking profile resolution in background
+    getParticipantProfile(otherId).then((profile) {
+      if (profile != null) {
+        final realName = profile['name']?.toString().trim();
+        if (realName != null && realName.isNotEmpty && realName.toLowerCase() != 'user') {
+          // Asynchronously backfill Firestore chat document so future loads have the name
+          final firestore = _firestoreOrNull;
+          if (firestore != null) {
+            firestore.collection('chats').doc(chat.id).update({
+              'participantNames.$otherId': realName,
+            }).catchError((_) {});
+          }
+        }
+      }
+    });
+
+    final role = chat.getOtherParticipantRole(currentUserId);
+    if (role.isNotEmpty && role.toLowerCase() != 'contact') {
+      return role[0].toUpperCase() + role.substring(1);
+    }
+    return 'School Member';
+  }
+
+  /// Synchronously resolve participant role
+  String resolveParticipantRoleSync(ChatModel chat, String currentUserId) {
+    final otherId = chat.getOtherParticipantId(currentUserId);
+    final stored = chat.participantRoles[otherId]?.trim();
+    if (stored != null && stored.isNotEmpty && stored.toLowerCase() != 'contact') {
+      return stored;
+    }
+    final cached = _userProfileCache[otherId]?['role']?.toString().trim();
+    if (cached != null && cached.isNotEmpty) {
+      return cached;
+    }
+    return 'Contact';
+  }
+
+  /// Check if participant is known to be online right now
+  bool isUserOnlineSync(String userId) {
+    return _userProfileCache[userId]?['isOnline'] == true;
+  }
+
+  /// Stream participant presence and profile info from users collection
+  Stream<Map<String, dynamic>?> streamUserPresence(String userId) {
+    final firestore = _firestoreOrNull;
+    if (firestore == null || userId.isEmpty) {
+      return Stream.value(null);
+    }
+    return firestore.collection('users').doc(userId).snapshots().map((doc) {
+      if (!doc.exists || doc.data() == null) return null;
+      final data = doc.data()!;
+      _userProfileCache[userId] = data;
+      return {
+        'isOnline': data['isOnline'] == true,
+        'lastSeen': data['lastSeen'],
+        'name': data['name'],
+        'role': data['role'],
+        'classId': data['classId'],
+        'grade': data['grade'],
+        'section': data['section'],
+        'profileImageUrl': data['profileImageUrl'],
+      };
+    });
+  }
+
+  /// Update the current user's presence in Firestore
+  Future<void> updatePresence({
+    required String userId,
+    required bool isOnline,
+  }) async {
+    final firestore = _firestoreOrNull;
+    if (firestore == null || userId.isEmpty) return;
+    try {
+      await firestore.collection('users').doc(userId).update({
+        'isOnline': isOnline,
+        'lastSeen': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
   }
 
   Stream<List<ChatModel>> getUserChatsStream(String userId) {
@@ -532,22 +666,29 @@ class RealtimeChatService {
 
     final Map<String, Map<String, dynamic>> contactMap = {};
 
-    void addContact(QueryDocumentSnapshot doc, {String fallbackName = 'User', String fallbackRole = 'user'}) {
+    void addContact(QueryDocumentSnapshot doc, {String fallbackName = 'Member', String fallbackRole = 'member'}) {
       if (doc.id == currentUser.id) return;
       final data = doc.data() as Map<String, dynamic>;
       final rawName = (data['name'] as String?)?.trim() ?? '';
       final role = (data['role'] as String?) ?? fallbackRole;
+      final grade = data['grade']?.toString();
+      final section = data['section']?.toString();
+      final resolvedFallback = (grade != null && grade.isNotEmpty)
+          ? '${role[0].toUpperCase()}${role.substring(1)} (Class $grade${section ?? ''})'
+          : (role.isNotEmpty ? '${role[0].toUpperCase()}${role.substring(1)}' : fallbackName);
+
       contactMap[doc.id] = {
         'id': doc.id,
-        'name': rawName.isEmpty ? fallbackName : rawName,
+        'name': (rawName.isEmpty || rawName.toLowerCase() == 'user') ? resolvedFallback : rawName,
         'role': role,
         'email': data['email'] ?? '',
         'schoolId': data['schoolId'] ?? '',
-        'grade': data['grade'] ?? '',
-        'section': data['section'] ?? '',
+        'grade': grade ?? '',
+        'section': section ?? '',
         'profileImageUrl': data['profileImageUrl'],
         'assignedSubjects': data['assignedSubjects'] ?? [],
       };
+      _userProfileCache[doc.id] = data;
     }
 
     List<List<String>> chunk(List<String> source, int size) {

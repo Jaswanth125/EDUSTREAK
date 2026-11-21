@@ -31,7 +31,13 @@ class RealtimeChatScreen extends StatefulWidget {
 class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final RealtimeChatService _chatService = RealtimeChatService();
-  List<MessageModel> _currentMessages = [];
+  final ValueNotifier<List<MessageModel>> _messagesNotifier = ValueNotifier<List<MessageModel>>([]);
+
+  @override
+  void dispose() {
+    _messagesNotifier.dispose();
+    super.dispose();
+  }
 
   ChatModel _resolveChat(String currentUserId, String currentUserRole, String currentUserName) {
     if (widget.chat != null) return widget.chat!;
@@ -75,23 +81,28 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
       endDrawer: Drawer(
         backgroundColor: EduStreakTheme.studentDarkSidebar,
         child: SafeArea(
-          child: ChatInfoPanel(
-            currentUser: currentUser,
-            chat: chat,
-            messages: _currentMessages,
-            onClose: () => Navigator.of(context).pop(),
-            onToggleMute: () {
-              final isMuted = chat.isMutedFor(currentUser.id);
-              _chatService.toggleMuteChat(
-                chatId: chat.id,
-                userId: currentUser.id,
-                currentMuted: isMuted,
-              );
-            },
-            onTogglePin: () {
-              _chatService.togglePinChat(
-                chatId: chat.id,
-                currentIsPinned: chat.isPinned,
+          child: ValueListenableBuilder<List<MessageModel>>(
+            valueListenable: _messagesNotifier,
+            builder: (context, messages, _) {
+              return ChatInfoPanel(
+                currentUser: currentUser,
+                chat: chat,
+                messages: messages,
+                onClose: () => Navigator.of(context).pop(),
+                onToggleMute: () {
+                  final isMuted = chat.isMutedFor(currentUser.id);
+                  _chatService.toggleMuteChat(
+                    chatId: chat.id,
+                    userId: currentUser.id,
+                    currentMuted: isMuted,
+                  );
+                },
+                onTogglePin: () {
+                  _chatService.togglePinChat(
+                    chatId: chat.id,
+                    currentIsPinned: chat.isPinned,
+                  );
+                },
               );
             },
           ),
@@ -103,14 +114,10 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
           chat: chat,
           isMobile: true,
           isInfoPanelOpen: false,
+          messagesNotifier: _messagesNotifier,
           onBack: () => Navigator.of(context).pop(),
           onToggleInfoPanel: () {
             _scaffoldKey.currentState?.openEndDrawer();
-          },
-          onMessagesUpdated: (msgs) {
-            if (mounted) {
-              setState(() => _currentMessages = msgs);
-            }
           },
         ),
       ),

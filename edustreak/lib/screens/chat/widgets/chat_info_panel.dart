@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/chat_model.dart';
 import '../../../models/message_model.dart';
 import '../../../models/user_model.dart';
+import '../../../services/realtime_chat_service.dart';
 import '../../../utils/edustreak_theme.dart';
 
 class ChatInfoPanel extends StatelessWidget {
@@ -11,6 +12,7 @@ class ChatInfoPanel extends StatelessWidget {
   final VoidCallback? onClose;
   final VoidCallback? onToggleMute;
   final VoidCallback? onTogglePin;
+  static final RealtimeChatService _chatService = RealtimeChatService();
 
   const ChatInfoPanel({
     super.key,
@@ -75,8 +77,8 @@ class ChatInfoPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final otherName = chat.getOtherParticipantName(currentUser.id);
-    final otherRole = chat.getOtherParticipantRole(currentUser.id);
+    final otherName = _chatService.resolveParticipantNameSync(chat, currentUser.id);
+    final otherRole = _chatService.resolveParticipantRoleSync(chat, currentUser.id);
     final roleColor = _getRoleColor(otherRole);
     final isMuted = chat.isMutedFor(currentUser.id);
     final isPinned = chat.isPinned;
@@ -443,7 +445,7 @@ class ChatInfoPanel extends StatelessWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'End-to-end encrypted school communication.',
+                          'TLS encrypted, role-authorized school communication.',
                           style: TextStyle(
                             color: EduStreakTheme.studentDarkTextMuted,
                             fontSize: 11,
